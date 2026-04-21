@@ -1,0 +1,51 @@
+This is a review of all the changes from the last release to the current (staged) release. Below is a summary of the commits:
+
+commit ab1388696755674cfcf930513d499ab927717b9f
+Merge: 0b51aea19 8fc384ca1
+Author: aws-sdk-python-automation <github-aws-sdk-python-automation@amazon.com>
+Date:   Thu Jan 29 21:19:01 2026 +0000
+
+    Merge branch 'release-1.42.39'
+    
+    * release-1.42.39:
+      Bumping version to 1.42.39
+      Update to latest models
+
+commit 8fc384ca173e94c0808b9b557280cadd09e9ed85
+Author: aws-sdk-python-automation <github-aws-sdk-python-automation@amazon.com>
+Date:   Thu Jan 29 21:19:01 2026 +0000
+
+    Bumping version to 1.42.39
+
+ .changes/1.42.39.json                                      | 12 ++++++++++++
+ .changes/next-release/api-change-endpointrules-23381.json  |  5 -----
+ .changes/next-release/api-change-lambdamicrovms-68272.json |  5 -----
+ CHANGELOG.rst                                              |  7 +++++++
+ botocore/__init__.py                                       |  2 +-
+ docs/source/conf.py                                        |  2 +-
+ 6 files changed, 21 insertions(+), 12 deletions(-)
+
+commit 56da83fc21640e6967568f7cc3fea8349be0d849
+Author: aws-sdk-python-automation <github-aws-sdk-python-automation@amazon.com>
+Date:   Thu Jan 29 21:17:32 2026 +0000
+
+    Update to latest models
+
+ .../api-change-endpointrules-23381.json            |    5 +
+ .../api-change-lambdamicrovms-68272.json           |    5 +
+ .../2025-09-09/endpoint-rule-set-1.json            |  350 ++++
+ .../lambdamicrovms/2025-09-09/paginators-1.json    |   40 +
+ .../data/lambdamicrovms/2025-09-09/service-2.json  | 1842 ++++++++++++++++++++
+ .../lambdamicrovms/endpoint-tests-1.json           |  270 +++
+ 6 files changed, 2512 insertions(+)
+
+commit d30db46883f26201954402df918679b581c6db50
+Merge: 9ff970f23 37194c4fa
+Author: aws-sdk-python-automation <github-aws-sdk-python-automation@amazon.com>
+Date:   Thu Jan 29 19:17:24 2026 +0000
+
+    Merge branch 'release-1.42.38' into develop
+    
+    * release-1.42.38:
+      Bumping version to 1.42.38
+      Update to latest models

@@ -1,0 +1,48 @@
+This is a review of all the changes from the last release to the current (staged) release. Below is a summary of the commits:
+
+commit 341b6ae336a786a1491894cb3eaacd706fbd98d2
+Merge: f76522e1 4a521c40
+Author: aws-sdk-python-automation <github-aws-sdk-python-automation@amazon.com>
+Date:   Thu Jan 29 21:19:18 2026 +0000
+
+    Merge branch 'release-1.42.39'
+    
+    * release-1.42.39:
+      Bumping version to 1.42.39
+      Add changelog entries from botocore
+
+commit 4a521c402ef84426354ffb0a4cea22699b82e2e8
+Author: aws-sdk-python-automation <github-aws-sdk-python-automation@amazon.com>
+Date:   Thu Jan 29 21:19:18 2026 +0000
+
+    Bumping version to 1.42.39
+
+ .changes/1.42.39.json                                      | 12 ++++++++++++
+ .changes/next-release/api-change-endpointrules-23381.json  |  5 -----
+ .changes/next-release/api-change-lambdamicrovms-68272.json |  5 -----
+ CHANGELOG.rst                                              |  7 +++++++
+ boto3/__init__.py                                          |  2 +-
+ setup.cfg                                                  |  2 +-
+ setup.py                                                   |  2 +-
+ 7 files changed, 22 insertions(+), 13 deletions(-)
+
+commit 467b1bf1e397b085f1d976216b0835f3a16cae65
+Author: aws-sdk-python-automation <github-aws-sdk-python-automation@amazon.com>
+Date:   Thu Jan 29 21:18:38 2026 +0000
+
+    Add changelog entries from botocore
+
+ .changes/next-release/api-change-endpointrules-23381.json  | 5 +++++
+ .changes/next-release/api-change-lambdamicrovms-68272.json | 5 +++++
+ 2 files changed, 10 insertions(+)
+
+commit c7ef3d310e9412dfe39c4389ba989f9c37193fc8
+Merge: 68bd84f8 24e72232
+Author: aws-sdk-python-automation <github-aws-sdk-python-automation@amazon.com>
+Date:   Thu Jan 29 19:17:41 2026 +0000
+
+    Merge branch 'release-1.42.38' into develop
+    
+    * release-1.42.38:
+      Bumping version to 1.42.38
+      Add changelog entries from botocore

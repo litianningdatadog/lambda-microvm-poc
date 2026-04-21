@@ -1,0 +1,2171 @@
+diff --git a/.changes/1.34.8.json b/.changes/1.42.39.json
+similarity index 59%
+copy from .changes/1.34.8.json
+copy to .changes/1.42.39.json
+index fdb2314df..e8fc454ce 100644
+--- a/.changes/1.34.8.json
++++ b/.changes/1.42.39.json
+@@ -1,12 +1,12 @@
+ [
+   {
+-    "category": "``iam``",
+-    "description": "Documentation updates for AWS Identity and Access Management (IAM).",
++    "category": "``endpoint-rules``",
++    "description": "Update endpoint-rules client to latest version",
+     "type": "api-change"
+   },
+   {
+-    "category": "``endpoint-rules``",
+-    "description": "Update endpoint-rules client to latest version",
++    "category": "``lambdamicrovms``",
++    "description": "Update lambdamicrovms client to latest version",
+     "type": "api-change"
+   }
+ ]
+\ No newline at end of file
+diff --git a/CHANGELOG.rst b/CHANGELOG.rst
+index 3a812e00c..1425b5c1b 100644
+--- a/CHANGELOG.rst
++++ b/CHANGELOG.rst
+@@ -2,6 +2,13 @@
+ CHANGELOG
+ =========
+ 
++1.42.39
++=======
++
++* api-change:``endpoint-rules``: Update endpoint-rules client to latest version
++* api-change:``lambdamicrovms``: Update lambdamicrovms client to latest version
++
++
+ 1.42.38
+ =======
+ 
+diff --git a/botocore/__init__.py b/botocore/__init__.py
+index 1d6b02d9f..ad315d118 100644
+--- a/botocore/__init__.py
++++ b/botocore/__init__.py
+@@ -17,7 +17,7 @@ import os
+ import re
+ from logging import NullHandler
+ 
+-__version__ = '1.42.38'
++__version__ = '1.42.39'
+ 
+ 
+ # Configure default logger to do nothing
+diff --git a/botocore/data/qconnect/2020-10-19/endpoint-rule-set-1.json b/botocore/data/lambdamicrovms/2025-09-09/endpoint-rule-set-1.json
+similarity index 98%
+copy from botocore/data/qconnect/2020-10-19/endpoint-rule-set-1.json
+copy to botocore/data/lambdamicrovms/2025-09-09/endpoint-rule-set-1.json
+index 85b7b38da..45723baf9 100644
+--- a/botocore/data/qconnect/2020-10-19/endpoint-rule-set-1.json
++++ b/botocore/data/lambdamicrovms/2025-09-09/endpoint-rule-set-1.json
+@@ -181,7 +181,7 @@
+                                                         {
+                                                             "conditions": [],
+                                                             "endpoint": {
+-                                                                "url": "https://wisdom-fips.{Region}.{PartitionResult#dualStackDnsSuffix}",
++                                                                "url": "https://lambda-fips.{Region}.{PartitionResult#dualStackDnsSuffix}",
+                                                                 "properties": {},
+                                                                 "headers": {}
+                                                             },
+@@ -239,7 +239,7 @@
+                                                         {
+                                                             "conditions": [],
+                                                             "endpoint": {
+-                                                                "url": "https://wisdom-fips.{Region}.{PartitionResult#dnsSuffix}",
++                                                                "url": "https://lambda-fips.{Region}.{PartitionResult#dnsSuffix}",
+                                                                 "properties": {},
+                                                                 "headers": {}
+                                                             },
+@@ -297,7 +297,7 @@
+                                                         {
+                                                             "conditions": [],
+                                                             "endpoint": {
+-                                                                "url": "https://wisdom.{Region}.{PartitionResult#dualStackDnsSuffix}",
++                                                                "url": "https://lambda.{Region}.{PartitionResult#dualStackDnsSuffix}",
+                                                                 "properties": {},
+                                                                 "headers": {}
+                                                             },
+@@ -323,7 +323,7 @@
+                                         {
+                                             "conditions": [],
+                                             "endpoint": {
+-                                                "url": "https://wisdom.{Region}.{PartitionResult#dnsSuffix}",
++                                                "url": "https://lambda.{Region}.{PartitionResult#dnsSuffix}",
+                                                 "properties": {},
+                                                 "headers": {}
+                                             },
+diff --git a/botocore/data/supplychain/2024-01-01/paginators-1.json b/botocore/data/lambdamicrovms/2025-09-09/paginators-1.json
+similarity index 63%
+copy from botocore/data/supplychain/2024-01-01/paginators-1.json
+copy to botocore/data/lambdamicrovms/2025-09-09/paginators-1.json
+index cd55b3055..bcfdcb07a 100644
+--- a/botocore/data/supplychain/2024-01-01/paginators-1.json
++++ b/botocore/data/lambdamicrovms/2025-09-09/paginators-1.json
+@@ -1,40 +1,40 @@
+ {
+   "pagination": {
+-    "ListDataIntegrationFlows": {
++    "ListManagedMicroVMImageVersions": {
+       "input_token": "nextToken",
+       "output_token": "nextToken",
+       "limit_key": "maxResults",
+-      "result_key": "flows"
++      "result_key": "versions"
+     },
+-    "ListDataLakeDatasets": {
++    "ListManagedMicroVMImages": {
+       "input_token": "nextToken",
+       "output_token": "nextToken",
+       "limit_key": "maxResults",
+-      "result_key": "datasets"
++      "result_key": "managedMicroVMImages"
+     },
+-    "ListInstances": {
++    "ListMicroVMImageBuilds": {
+       "input_token": "nextToken",
+       "output_token": "nextToken",
+       "limit_key": "maxResults",
+-      "result_key": "instances"
++      "result_key": "builds"
+     },
+-    "ListDataIntegrationEvents": {
++    "ListMicroVMImageVersions": {
+       "input_token": "nextToken",
+       "output_token": "nextToken",
+       "limit_key": "maxResults",
+-      "result_key": "events"
++      "result_key": "versions"
+     },
+-    "ListDataIntegrationFlowExecutions": {
++    "ListMicroVMImages": {
+       "input_token": "nextToken",
+       "output_token": "nextToken",
+       "limit_key": "maxResults",
+-      "result_key": "flowExecutions"
++      "result_key": "microVMImages"
+     },
+-    "ListDataLakeNamespaces": {
++    "ListMicroVMs": {
+       "input_token": "nextToken",
+       "output_token": "nextToken",
+       "limit_key": "maxResults",
+-      "result_key": "namespaces"
++      "result_key": "microVMs"
+     }
+   }
+ }
+diff --git a/botocore/data/lambdamicrovms/2025-09-09/service-2.json b/botocore/data/lambdamicrovms/2025-09-09/service-2.json
+new file mode 100644
+index 000000000..5bbba387b
+--- /dev/null
++++ b/botocore/data/lambdamicrovms/2025-09-09/service-2.json
+@@ -0,0 +1,1842 @@
++{
++  "version":"2.0",
++  "metadata":{
++    "apiVersion":"2025-09-09",
++    "auth":["aws.auth#sigv4"],
++    "endpointPrefix":"lambda",
++    "jsonVersion":"1.0",
++    "protocol":"json",
++    "protocols":["json"],
++    "serviceFullName":"LambdaMicroVMs",
++    "serviceId":"LambdaMicroVMs",
++    "signatureVersion":"v4",
++    "signingName":"lambda",
++    "targetPrefix":"LambdaMicroVMs",
++    "uid":"lambdamicrovms-2025-09-09"
++  },
++  "operations":{
++    "CloneMicroVM":{
++      "name":"CloneMicroVM",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"CloneMicroVMRequest"},
++      "output":{"shape":"CloneMicroVMResponse"}
++    },
++    "CreateMicroVMImage":{
++      "name":"CreateMicroVMImage",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"CreateMicroVMImageInput"},
++      "output":{"shape":"CreateMicroVMImageOutput"},
++      "errors":[
++        {"shape":"DependencyException"},
++        {"shape":"AccessDeniedException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"InvalidRequestException"}
++      ],
++      "documentation":"<p>Creates a new microVM image with the specified configuration and code artifact</p>"
++    },
++    "DeleteMicroVMImage":{
++      "name":"DeleteMicroVMImage",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"DeleteMicroVMImageInput"},
++      "output":{"shape":"DeleteMicroVMImageOutput"},
++      "errors":[
++        {"shape":"DependencyException"}
++      ]
++    },
++    "DeleteMicroVMImageVersion":{
++      "name":"DeleteMicroVMImageVersion",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"DeleteMicroVMImageVersionInput"},
++      "output":{"shape":"DeleteMicroVMImageVersionOutput"},
++      "errors":[
++        {"shape":"DependencyException"}
++      ]
++    },
++    "DescribeMicroVM":{
++      "name":"DescribeMicroVM",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"DescribeMicroVMRequest"},
++      "output":{"shape":"DescribeMicroVMResponse"},
++      "errors":[
++        {"shape":"AccessDeniedException"},
++        {"shape":"InvalidRequestException"},
++        {"shape":"ResourceNotFoundException"}
++      ],
++      "readonly":true
++    },
++    "DescribeMicroVMImage":{
++      "name":"DescribeMicroVMImage",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"DescribeMicroVMImageInput"},
++      "output":{"shape":"DescribeMicroVMImageOutput"},
++      "errors":[
++        {"shape":"DependencyException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"ResourceNotFoundException"}
++      ],
++      "documentation":"<p>API used to describe properties of a MicroVM image</p>"
++    },
++    "DescribeMicroVMImageBuild":{
++      "name":"DescribeMicroVMImageBuild",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"DescribeMicroVMImageBuildInput"},
++      "output":{"shape":"DescribeMicroVMImageBuildOutput"},
++      "errors":[
++        {"shape":"DependencyException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"ResourceNotFoundException"}
++      ],
++      "documentation":"<p>API used to describe properties of a MicroVM image build</p>"
++    },
++    "DescribeMicroVMImageVersion":{
++      "name":"DescribeMicroVMImageVersion",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"DescribeMicroVMImageVersionInput"},
++      "output":{"shape":"DescribeMicroVMImageVersionOutput"},
++      "errors":[
++        {"shape":"DependencyException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"ResourceNotFoundException"}
++      ],
++      "documentation":"<p>API used to describe the properties of a MicroVM image version</p>"
++    },
++    "GenerateMicroVMAuthToken":{
++      "name":"GenerateMicroVMAuthToken",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"GenerateMicroVMAuthTokenRequest"},
++      "output":{"shape":"GenerateMicroVMAuthTokenResponse"}
++    },
++    "GenerateMicroVMShellAuthToken":{
++      "name":"GenerateMicroVMShellAuthToken",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"GenerateMicroVMShellAuthTokenRequest"},
++      "output":{"shape":"GenerateMicroVMShellAuthTokenResponse"}
++    },
++    "GetAuthorizationContext":{
++      "name":"GetAuthorizationContext",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"GetAuthorizationContextRequest"},
++      "output":{"shape":"GetAuthorizationContextResponse"},
++      "errors":[
++        {"shape":"AccessDeniedException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"InvalidRequestException"},
++        {"shape":"ResourceNotFoundException"}
++      ],
++      "documentation":"<p>Returns the authorization context to be used by ARC.</p>",
++      "readonly":true
++    },
++    "LaunchMicroVM":{
++      "name":"LaunchMicroVM",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"LaunchMicroVMRequest"},
++      "output":{"shape":"LaunchMicroVMResponse"},
++      "errors":[
++        {"shape":"AccessDeniedException"},
++        {"shape":"InsufficientCapacityException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"InvalidRequestException"},
++        {"shape":"ResourceNotFoundException"},
++        {"shape":"ThrottlingException"},
++        {"shape":"ResourceNotReadyException"}
++      ],
++      "documentation":"<p>Launches a MicroVM from the provided MicroVM Image.</p>"
++    },
++    "ListManagedMicroVMImageVersions":{
++      "name":"ListManagedMicroVMImageVersions",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"ListManagedMicroVMImageVersionsInput"},
++      "output":{"shape":"ListManagedMicroVMImageVersionsOutput"},
++      "errors":[
++        {"shape":"DependencyException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"InvalidRequestException"}
++      ],
++      "documentation":"<p>Lists major versions and ARNs for a specific managed Virtual Machine Image.</p>"
++    },
++    "ListManagedMicroVMImages":{
++      "name":"ListManagedMicroVMImages",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"ListManagedMicroVMImagesInput"},
++      "output":{"shape":"ListManagedMicroVMImagesOutput"},
++      "errors":[
++        {"shape":"DependencyException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"InvalidRequestException"}
++      ],
++      "documentation":"<p>Lists available managed mVMIs for an account.</p>"
++    },
++    "ListMicroVMImageBuilds":{
++      "name":"ListMicroVMImageBuilds",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"ListMicroVMImageBuildsInput"},
++      "output":{"shape":"ListMicroVMImageBuildsOutput"},
++      "errors":[
++        {"shape":"DependencyException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"ResourceNotFoundException"}
++      ],
++      "documentation":"<p>Lists builds for a specific MicroVM image with optional filtering by architecture and chipset characteristics.</p>"
++    },
++    "ListMicroVMImageVersions":{
++      "name":"ListMicroVMImageVersions",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"ListMicroVMImageVersionsInput"},
++      "output":{"shape":"ListMicroVMImageVersionsOutput"},
++      "errors":[
++        {"shape":"DependencyException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"ResourceNotFoundException"}
++      ],
++      "documentation":"<p>Lists all versions for a specific MicroVM image with optional filtering by state, sorted by creation time.</p>"
++    },
++    "ListMicroVMImages":{
++      "name":"ListMicroVMImages",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"ListMicroVMImagesInput"},
++      "output":{"shape":"ListMicroVMImagesOutput"},
++      "errors":[
++        {"shape":"DependencyException"}
++      ]
++    },
++    "ListMicroVMs":{
++      "name":"ListMicroVMs",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"ListMicroVMsRequest"},
++      "output":{"shape":"ListMicroVMsResponse"},
++      "errors":[
++        {"shape":"AccessDeniedException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"InvalidRequestException"},
++        {"shape":"ResourceNotFoundException"},
++        {"shape":"ThrottlingException"}
++      ],
++      "documentation":"<p>Returns MicroVMs by calling ListApplicationInstances and converting the response format. This operation provides a MicroVM-compatible interface over the existing ApplicationInstance data.</p>",
++      "readonly":true
++    },
++    "ResumeMicroVM":{
++      "name":"ResumeMicroVM",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"ResumeMicroVMRequest"},
++      "output":{"shape":"ResumeMicroVMResponse"},
++      "errors":[
++        {"shape":"AccessDeniedException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"InvalidRequestException"},
++        {"shape":"ResourceNotFoundException"},
++        {"shape":"ThrottlingException"}
++      ],
++      "documentation":"<p>Resumes the given MicroVM. This operation only acknowledges the request to resume the MicroVM. The actual MicroVM resume happens asynchronously.</p>",
++      "idempotent":true
++    },
++    "SuspendMicroVM":{
++      "name":"SuspendMicroVM",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"SuspendMicroVMRequest"},
++      "output":{"shape":"SuspendMicroVMResponse"},
++      "errors":[
++        {"shape":"AccessDeniedException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"InvalidRequestException"},
++        {"shape":"ResourceNotFoundException"},
++        {"shape":"ThrottlingException"}
++      ],
++      "documentation":"<p>Suspends the given MicroVM. This operation only acknowledges the request to suspend the MicroVM. The actual MicroVM suspension happens asynchronously.</p>",
++      "idempotent":true
++    },
++    "TerminateMicroVM":{
++      "name":"TerminateMicroVM",
++      "http":{
++        "method":"POST",
++        "requestUri":"/"
++      },
++      "input":{"shape":"TerminateMicroVMRequest"},
++      "output":{"shape":"TerminateMicroVMResponse"},
++      "errors":[
++        {"shape":"AccessDeniedException"},
++        {"shape":"InternalServiceException"},
++        {"shape":"InvalidRequestException"},
++        {"shape":"ResourceNotFoundException"},
++        {"shape":"ThrottlingException"}
++      ],
++      "documentation":"<p>Terminates the given MicroVM. This operation only acknowledges the request to Terminate the MicroVM. The actual MicroVM termination happens asynchronously.</p>",
++      "idempotent":true
++    }
++  },
++  "shapes":{
++    "AccessDeniedException":{
++      "type":"structure",
++      "members":{
++        "message":{"shape":"String"}
++      },
++      "documentation":"<p>Exception is thrown when the caller is not authorized to perform the request.</p>",
++      "exception":true
++    },
++    "Architecture":{
++      "type":"string",
++      "enum":[
++        "X86_64",
++        "ARM_64"
++      ]
++    },
++    "Arn":{
++      "type":"string",
++      "documentation":"<p>A generic ARN</p>",
++      "max":1224,
++      "min":0,
++      "pattern":"arn:[a-z0-9][-.a-z0-9]{0,62}:[a-z0-9][-.a-z0-9]{0,62}:([a-z0-9][-.a-z0-9]{0,62})?:([a-z0-9][-.a-z0-9]{0,62})?:[^/].{0,1023}"
++    },
++    "Blob":{"type":"blob"},
++    "Boolean":{
++      "type":"boolean",
++      "box":true
++    },
++    "BuildState":{
++      "type":"string",
++      "enum":[
++        "PENDING",
++        "IN_PROGRESS",
++        "STAGED",
++        "SUCCESSFUL",
++        "FAILED"
++      ]
++    },
++    "CPUSpec":{
++      "type":"structure",
++      "required":["architecture"],
++      "members":{
++        "architecture":{"shape":"Architecture"},
++        "chipsetGenerations":{"shape":"ChipsetGenerations"}
++      },
++      "documentation":"<p>Specification of CPU architecture and chipsets for launching MicroVMs.</p>"
++    },
++    "CPUSpecList":{
++      "type":"list",
++      "member":{"shape":"CPUSpec"}
++    },
++    "Chipset":{
++      "type":"string",
++      "enum":[
++        "GRAVITON",
++        "INTEL"
++      ]
++    },
++    "ChipsetGeneration":{"type":"string"},
++    "ChipsetGenerationList":{
++      "type":"list",
++      "member":{"shape":"ChipsetGeneration"}
++    },
++    "ChipsetGenerations":{
++      "type":"map",
++      "key":{"shape":"Chipset"},
++      "value":{"shape":"ChipsetGenerationList"},
++      "documentation":"<p>A map of chipsets to lists of chipset generations.</p>"
++    },
++    "CloneMicroVMRequest":{
++      "type":"structure",
++      "required":["microVMId"],
++      "members":{
++        "microVMId":{"shape":"MicroVMId"}
++      }
++    },
++    "CloneMicroVMResponse":{
++      "type":"structure",
++      "members":{
++        "clonedMicroVMId":{"shape":"MicroVMId"}
++      }
++    },
++    "CodeArtifact":{
++      "type":"structure",
++      "members":{
++        "uri":{
++          "shape":"NonBlankString",
++          "documentation":"<p>URI to the artifact</p>"
++        },
++        "dockerFileString":{
++          "shape":"Blob",
++          "documentation":"<p>Docker File</p>"
++        }
++      },
++      "documentation":"<p>Code artifact information for MicroVM image versions</p>",
++      "union":true
++    },
++    "CreateMicroVMImageInput":{
++      "type":"structure",
++      "required":[
++        "codeArtifact",
++        "baseMicroVMImageArn",
++        "buildRoleArn",
++        "name"
++      ],
++      "members":{
++        "codeArtifact":{
++          "shape":"CodeArtifact",
++          "documentation":"<p>Code artifact information containing the application code and metadata for the microVM image</p>"
++        },
++        "baseMicroVMImageArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>ARN of the base microVM image to use as the foundation for this new image</p>"
++        },
++        "buildRoleArn":{
++          "shape":"RoleArn",
++          "documentation":"<p>ARN of the IAM build role that grants permissions to build and manage the microVM image</p>"
++        },
++        "ingressNetworkConnectors":{
++          "shape":"NetworkConnectorList",
++          "documentation":"<p>List of ingress network connectors for the microVM image</p>"
++        },
++        "egressNetworkConnectors":{
++          "shape":"NetworkConnectorList",
++          "documentation":"<p>List of egress network connectors for the microVM image</p>"
++        },
++        "snapshotEncryptionKeyArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>ARN of the KMS key used to encrypt snapshots created during the image build process. An AWS Managed Key will be used by default if a CMK is not provided.</p>"
++        },
++        "snapshotConfig":{
++          "shape":"SnapshotConfig",
++          "documentation":"<p>Configuration settings for MicroVM image snapshot</p>"
++        },
++        "loggingConfig":{
++          "shape":"LoggingConfig",
++          "documentation":"<p>Configuration for MicroVM image log</p>"
++        },
++        "baseMicroVMImageVersion":{
++          "shape":"Version",
++          "documentation":"<p>Specific version of the base MicroVM image to use</p>"
++        },
++        "tags":{
++          "shape":"TagMap",
++          "documentation":"<p>Key-value pairs to associate with the microVM image for organization and management</p>"
++        },
++        "description":{
++          "shape":"NonEmptyString",
++          "documentation":"<p>Human-readable description of the microVM image and its purpose</p>"
++        },
++        "name":{
++          "shape":"CreateMicroVMImageInputNameString",
++          "documentation":"<p>Unique name for the microVM image within the account</p>"
++        },
++        "clientToken":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Unique, case-sensitive identifier you provide to ensure the idempotency of the request. If you do not specify a client token, a randomly generated token is used for the request to ensure idempotency.</p>"
++        }
++      }
++    },
++    "CreateMicroVMImageInputNameString":{
++      "type":"string",
++      "documentation":"<p>A string which is not empty or blank (only whitespace).</p>",
++      "max":64,
++      "min":1,
++      "pattern":"[a-zA-Z0-9-_]+"
++    },
++    "CreateMicroVMImageOutput":{
++      "type":"structure",
++      "required":[
++        "microVMImageArn",
++        "state"
++      ],
++      "members":{
++        "microVMImageArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>ARN of the newly created microVM image</p>"
++        },
++        "state":{
++          "shape":"MicroVMImageState",
++          "documentation":"<p>State of the newly created microVM image</p>"
++        }
++      }
++    },
++    "DeleteMicroVMImageInput":{
++      "type":"structure",
++      "required":["microVMImageArn"],
++      "members":{
++        "microVMImageArn":{"shape":"NonBlankString"}
++      }
++    },
++    "DeleteMicroVMImageOutput":{
++      "type":"structure",
++      "members":{
++        "microVMImageState":{"shape":"VersionState"}
++      }
++    },
++    "DeleteMicroVMImageVersionInput":{
++      "type":"structure",
++      "required":[
++        "microVMImageArn",
++        "microVMImageVersion"
++      ],
++      "members":{
++        "microVMImageArn":{"shape":"NonBlankString"},
++        "microVMImageVersion":{"shape":"NonBlankString"}
++      }
++    },
++    "DeleteMicroVMImageVersionOutput":{
++      "type":"structure",
++      "members":{
++        "microVMImageVersionState":{"shape":"VersionState"}
++      }
++    },
++    "DependencyException":{
++      "type":"structure",
++      "members":{
++        "message":{"shape":"NonBlankString"}
++      },
++      "exception":true,
++      "fault":true
++    },
++    "DescribeMicroVMImageBuildInput":{
++      "type":"structure",
++      "required":[
++        "microVMImageArn",
++        "microVMImageVersion",
++        "buildId"
++      ],
++      "members":{
++        "microVMImageArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>id of a given MicroVM image</p>"
++        },
++        "microVMImageVersion":{
++          "shape":"NonBlankString",
++          "documentation":"<p>a MicroVM image's version ID</p>"
++        },
++        "buildId":{
++          "shape":"NonBlankString",
++          "documentation":"<p>a MicroVM image's build request ID</p>"
++        }
++      }
++    },
++    "DescribeMicroVMImageBuildOutput":{
++      "type":"structure",
++      "required":[
++        "microVMImageArn",
++        "microVMImageVersion",
++        "buildId",
++        "buildState",
++        "architecture",
++        "chipset",
++        "chipsetGeneration",
++        "encryptedDataKey",
++        "creationDate"
++      ],
++      "members":{
++        "microVMImageArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>id of a given MicroVM image</p>"
++        },
++        "microVMImageVersion":{
++          "shape":"NonBlankString",
++          "documentation":"<p>a MicroVM image's version ID</p>"
++        },
++        "buildId":{
++          "shape":"NonBlankString",
++          "documentation":"<p>a MicroVM image's build request ID</p>"
++        },
++        "buildState":{
++          "shape":"BuildState",
++          "documentation":"<p>current state of the build</p>"
++        },
++        "architecture":{
++          "shape":"Architecture",
++          "documentation":"<p>architecture of build</p>"
++        },
++        "chipset":{
++          "shape":"Chipset",
++          "documentation":"<p>chipset used by build</p>"
++        },
++        "chipsetGeneration":{
++          "shape":"NonBlankString",
++          "documentation":"<p>generation of the chipset</p>"
++        },
++        "encryptedDataKey":{
++          "shape":"NonBlankString",
++          "documentation":"<p>the encrypted key of the Snapshot</p>"
++        },
++        "failureReason":{
++          "shape":"NonBlankString",
++          "documentation":"<p>reason for build failure, if applicable</p>"
++        },
++        "creationDate":{
++          "shape":"PositiveLong",
++          "documentation":"<p>build creation date</p>"
++        }
++      }
++    },
++    "DescribeMicroVMImageInput":{
++      "type":"structure",
++      "required":["microVMImageArn"],
++      "members":{
++        "microVMImageArn":{"shape":"NonBlankString"}
++      }
++    },
++    "DescribeMicroVMImageOutput":{
++      "type":"structure",
++      "required":["summary"],
++      "members":{
++        "summary":{"shape":"MicroVMImageSummary"}
++      }
++    },
++    "DescribeMicroVMImageVersionInput":{
++      "type":"structure",
++      "required":[
++        "microVMImageArn",
++        "microVMImageVersion"
++      ],
++      "members":{
++        "microVMImageArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>id of a given MicroVM image</p>"
++        },
++        "microVMImageVersion":{
++          "shape":"NonBlankString",
++          "documentation":"<p>a MicroVM image's version ID</p>"
++        }
++      }
++    },
++    "DescribeMicroVMImageVersionOutput":{
++      "type":"structure",
++      "required":[
++        "microVMImageArn",
++        "microVMImageVersion",
++        "codeArtifact",
++        "buildRoleArn",
++        "versionState",
++        "description",
++        "creationDate"
++      ],
++      "members":{
++        "microVMImageArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>id of a given MicroVM image</p>"
++        },
++        "microVMImageVersion":{
++          "shape":"NonBlankString",
++          "documentation":"<p>a MicroVM image's version ID</p>"
++        },
++        "codeArtifact":{
++          "shape":"CodeArtifact",
++          "documentation":"<p>the code artifact defined within the version</p>"
++        },
++        "buildRoleArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>the buildRoleArn of the version</p>"
++        },
++        "networkInterfaces":{
++          "shape":"NetworkInterfaceList",
++          "documentation":"<p>the network interfaces of the version</p>"
++        },
++        "versionState":{
++          "shape":"VersionState",
++          "documentation":"<p>current state of the MicroVM image version</p>"
++        },
++        "description":{
++          "shape":"NonBlankString",
++          "documentation":"<p>human readable description of the MicroVM image version</p>"
++        },
++        "creationDate":{
++          "shape":"PositiveLong",
++          "documentation":"<p>MicroVM image version creation date</p>"
++        }
++      }
++    },
++    "DescribeMicroVMRequest":{
++      "type":"structure",
++      "required":["microVMId"],
++      "members":{
++        "microVMId":{"shape":"MicroVMId"}
++      }
++    },
++    "DescribeMicroVMResponse":{
++      "type":"structure",
++      "members":{
++        "ingressNetworkConnectors":{"shape":"NetworkConnectorList"},
++        "egressNetworkConnectors":{"shape":"NetworkConnectorList"},
++        "microVMId":{"shape":"MicroVMId"},
++        "microVMImageArn":{"shape":"MicroVMImageArn"},
++        "microVMImageVersion":{"shape":"Version"},
++        "microVMState":{"shape":"MicroVMState"},
++        "executionRoleArn":{"shape":"String"},
++        "idlePolicy":{"shape":"IdlePolicy"},
++        "operationalConfig":{"shape":"OperationalConfig"},
++        "microVMMeshId":{"shape":"String"},
++        "resourceSpec":{"shape":"ResourceSpec"},
++        "cpuSpec":{"shape":"CPUSpec"},
++        "endpoint":{"shape":"String"},
++        "ipv6Address":{"shape":"String"},
++        "launchDate":{"shape":"Timestamp"}
++      }
++    },
++    "GenerateMicroVMAuthTokenRequest":{
++      "type":"structure",
++      "required":[
++        "microVMId",
++        "expirationMinutes"
++      ],
++      "members":{
++        "microVMId":{"shape":"MicroVMId"},
++        "expirationMinutes":{"shape":"PositiveInteger"},
++        "allowedPorts":{"shape":"ListOfPortRange"}
++      }
++    },
++    "GenerateMicroVMAuthTokenResponse":{
++      "type":"structure",
++      "required":["authToken"],
++      "members":{
++        "authToken":{"shape":"TokenParts"}
++      }
++    },
++    "GenerateMicroVMShellAuthTokenRequest":{
++      "type":"structure",
++      "required":[
++        "microVMId",
++        "expirationMinutes"
++      ],
++      "members":{
++        "microVMId":{"shape":"MicroVMId"},
++        "expirationMinutes":{"shape":"PositiveInteger"}
++      }
++    },
++    "GenerateMicroVMShellAuthTokenResponse":{
++      "type":"structure",
++      "required":["authToken"],
++      "members":{
++        "authToken":{"shape":"TokenParts"}
++      }
++    },
++    "GetAuthorizationContextRequest":{
++      "type":"structure",
++      "members":{
++        "request":{"shape":"String"}
++      },
++      "documentation":"<p>Describes all the authorization and related context expected by ARC.</p>"
++    },
++    "GetAuthorizationContextResponse":{
++      "type":"structure",
++      "members":{
++        "resourcePolicyMap":{"shape":"ResourcePolicyMap"},
++        "passRoleCheckList":{"shape":"PassRoleCheckList"}
++      },
++      "documentation":"<p>Describes all the authorization and related context expected by ARC.</p>"
++    },
++    "IdlePolicy":{
++      "type":"structure",
++      "required":[
++        "maxIdleDurationSeconds",
++        "suspendedDurationSeconds",
++        "autoResumeEnabled"
++      ],
++      "members":{
++        "maxIdleDurationSeconds":{
++          "shape":"IdlePolicyMaxIdleDurationSecondsInteger",
++          "documentation":"<p>Number of seconds of idleness after which a MicroVM will be suspended.</p>"
++        },
++        "suspendedDurationSeconds":{
++          "shape":"IdlePolicySuspendedDurationSecondsInteger",
++          "documentation":"<p>Number of seconds in SUSPENDED state after which a MicroVM will be terminated.</p>"
++        },
++        "autoResumeEnabled":{
++          "shape":"Boolean",
++          "documentation":"<p>Whether the MicroVM should automatically resume from SUSPENDED on ingress traffic.</p>"
++        }
++      },
++      "documentation":"<p>Configuration to control the behavior of auto-suspend and auto-resume behavior.</p>"
++    },
++    "IdlePolicyMaxIdleDurationSecondsInteger":{
++      "type":"integer",
++      "box":true,
++      "min":1
++    },
++    "IdlePolicySuspendedDurationSecondsInteger":{
++      "type":"integer",
++      "box":true,
++      "min":0
++    },
++    "InsufficientCapacityException":{
++      "type":"structure",
++      "members":{
++        "message":{"shape":"String"}
++      },
++      "documentation":"<p>This exception is thrown if the system can't find compute capacity to run the requested application</p>",
++      "exception":true
++    },
++    "Integer":{
++      "type":"integer",
++      "box":true
++    },
++    "InternalServiceException":{
++      "type":"structure",
++      "required":["message"],
++      "members":{
++        "message":{"shape":"String"}
++      },
++      "documentation":"<p>Internal service error</p>",
++      "exception":true,
++      "fault":true
++    },
++    "InvalidRequestException":{
++      "type":"structure",
++      "members":{
++        "message":{"shape":"String"}
++      },
++      "documentation":"<p>This exception is thrown if the request is not valid.</p>",
++      "exception":true
++    },
++    "LaunchMicroVMRequest":{
++      "type":"structure",
++      "required":["microVMImageArn"],
++      "members":{
++        "ingressNetworkConnectors":{"shape":"NetworkConnectorList"},
++        "egressNetworkConnectors":{"shape":"NetworkConnectorList"},
++        "microVMImageArn":{
++          "shape":"MicroVMImageArn",
++          "documentation":"<p>The ARN of the MicroVM Image to launch.</p>"
++        },
++        "microVMImageVersion":{
++          "shape":"Version",
++          "documentation":"<p>The MicroVM Image version to launch. If not provided, will default to the latest active version.</p>"
++        },
++        "executionRoleArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>The role to be assumed by the MicroVM. This role must trust lambda.amazonaws.com.</p>"
++        },
++        "idlePolicy":{
++          "shape":"IdlePolicy",
++          "documentation":"<p>Configuration to control the behavior of auto-suspend and auto-resume behavior.</p>"
++        },
++        "userDataScript":{
++          "shape":"UserData",
++          "documentation":"<p>A script that will be injected into the MicroVM.</p> <p>This field may contained sensitive data. It will be encrypted in transit using TLS, and at rest using an AWS owned key.</p>"
++        },
++        "loggingConfig":{
++          "shape":"LoggingConfig",
++          "documentation":"<p>Configuration defining the necessary information for MicroVM observability.</p>"
++        },
++        "operationalConfig":{
++          "shape":"OperationalConfig",
++          "documentation":"<p>Configuration of specific behavior for making it easier to debug MicroVM issues.</p>"
++        },
++        "microVMMeshId":{
++          "shape":"NonBlankString",
++          "documentation":"<p>If provided, adds the MicroVM to the mesh.</p>"
++        },
++        "resourceSpec":{
++          "shape":"ResourceSpec",
++          "documentation":"<p>If not provided, MicroVM is launched with default size.</p> <p>If provided and the MicroVM Image has been optimized for the provided spec, MicroVM will be launched with SnapStart.</p> <p>If provided and the MicroVM Image has NOT been optimized for the provided spec, MicroVM will NOT be launched with SnapStart.</p>"
++        },
++        "cpuSpec":{
++          "shape":"CPUSpec",
++          "documentation":"<p>If not provided, a random compatible CPU will be chosen to launch the MicroVM.</p>"
++        }
++      }
++    },
++    "LaunchMicroVMResponse":{
++      "type":"structure",
++      "members":{
++        "ingressNetworkConnectors":{"shape":"NetworkConnectorList"},
++        "egressNetworkConnectors":{"shape":"NetworkConnectorList"},
++        "microVMId":{"shape":"MicroVMId"},
++        "microVMState":{"shape":"MicroVMState"},
++        "endpoint":{"shape":"String"},
++        "ipv6Address":{"shape":"String"},
++        "microVMImageArn":{"shape":"MicroVMImageArn"},
++        "microVMImageVersion":{"shape":"Version"},
++        "executionRoleArn":{"shape":"NonBlankString"},
++        "idlePolicy":{"shape":"IdlePolicy"},
++        "operationalConfig":{"shape":"OperationalConfig"},
++        "microVMMeshId":{"shape":"NonBlankString"},
++        "resourceSpec":{"shape":"ResourceSpec"},
++        "cpuSpec":{"shape":"CPUSpec"}
++      }
++    },
++    "ListManagedMicroVMImageVersionsInput":{
++      "type":"structure",
++      "required":["arn"],
++      "members":{
++        "maxResults":{
++          "shape":"ListManagedMicroVMImageVersionsInputMaxResultsInteger",
++          "documentation":"<p>Maximum number of results to return.</p>"
++        },
++        "nextToken":{
++          "shape":"String",
++          "documentation":"<p>Pagination token.</p>"
++        },
++        "arn":{
++          "shape":"String",
++          "documentation":"<p>Managed mVMI ARN to query versions for.</p>"
++        }
++      }
++    },
++    "ListManagedMicroVMImageVersionsInputMaxResultsInteger":{
++      "type":"integer",
++      "box":true,
++      "max":1000,
++      "min":1
++    },
++    "ListManagedMicroVMImageVersionsOutput":{
++      "type":"structure",
++      "required":["versions"],
++      "members":{
++        "nextToken":{
++          "shape":"String",
++          "documentation":"<p>Pagination token.</p>"
++        },
++        "versions":{"shape":"ManagedMicroVMImageVersionList"}
++      }
++    },
++    "ListManagedMicroVMImagesInput":{
++      "type":"structure",
++      "members":{
++        "maxResults":{
++          "shape":"ListManagedMicroVMImagesInputMaxResultsInteger",
++          "documentation":"<p>Maximum number of results to return.</p>"
++        },
++        "nextToken":{
++          "shape":"String",
++          "documentation":"<p>Pagination token.</p>"
++        },
++        "name":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Filter by managed microVM image name.</p>"
++        },
++        "architecture":{
++          "shape":"Architecture",
++          "documentation":"<p>Filter by managed microVM image supported architectures.</p>"
++        }
++      }
++    },
++    "ListManagedMicroVMImagesInputMaxResultsInteger":{
++      "type":"integer",
++      "box":true,
++      "max":1000,
++      "min":1
++    },
++    "ListManagedMicroVMImagesOutput":{
++      "type":"structure",
++      "required":["managedMicroVMImages"],
++      "members":{
++        "nextToken":{
++          "shape":"String",
++          "documentation":"<p>Pagination token.</p>"
++        },
++        "managedMicroVMImages":{"shape":"ManagedMicroVMImageSummaryList"}
++      }
++    },
++    "ListMicroVMImageBuildsInput":{
++      "type":"structure",
++      "required":["microVMImageArn"],
++      "members":{
++        "microVMImageArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>The MicroVM Image ARN to list builds for.</p>"
++        },
++        "microVMImageVersion":{
++          "shape":"NonBlankString",
++          "documentation":"<p>The MicroVM Image Version to list builds for. Defaults to the latest active version.</p>"
++        },
++        "architecture":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Optional filter by target architecture.</p>"
++        },
++        "chipset":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Optional filter by target chipset.</p>"
++        },
++        "chipsetGeneration":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Optional filter by chipset generation.</p>"
++        },
++        "resourceSpec":{
++          "shape":"ResourceSpecification",
++          "documentation":"<p>Optional filter by resource specification.</p>"
++        },
++        "nextToken":{
++          "shape":"NextToken",
++          "documentation":"<p>The next token for pagination.</p>"
++        },
++        "maxResults":{
++          "shape":"Integer",
++          "documentation":"<p>The maximum number of query results to return.</p>"
++        }
++      }
++    },
++    "ListMicroVMImageBuildsOutput":{
++      "type":"structure",
++      "required":["builds"],
++      "members":{
++        "builds":{
++          "shape":"MicroVMImageBuildList",
++          "documentation":"<p>The list of builds for the given MicroVM image version.</p>"
++        },
++        "nextToken":{
++          "shape":"NextToken",
++          "documentation":"<p>The next token for pagination.</p>"
++        }
++      }
++    },
++    "ListMicroVMImageVersionsInput":{
++      "type":"structure",
++      "required":["microVMImageArn"],
++      "members":{
++        "microVMImageArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>The MicroVM image ID to list versions for.</p>"
++        },
++        "state":{
++          "shape":"VersionState",
++          "documentation":"<p>Optional filter by version state.</p>"
++        },
++        "managedMicroVMImageId":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Optional filter by managed MicroVM image ID.</p>"
++        },
++        "startTime":{
++          "shape":"Timestamp",
++          "documentation":"<p>Optional start time for filtering versions (inclusive).</p>"
++        },
++        "endTime":{
++          "shape":"Timestamp",
++          "documentation":"<p>Optional end time for filtering versions (exclusive).</p>"
++        },
++        "nextToken":{
++          "shape":"NextToken",
++          "documentation":"<p>The next token for pagination.</p>"
++        },
++        "maxResults":{
++          "shape":"Integer",
++          "documentation":"<p>The maximum number of query results to return.</p>"
++        }
++      }
++    },
++    "ListMicroVMImageVersionsOutput":{
++      "type":"structure",
++      "required":["versions"],
++      "members":{
++        "versions":{
++          "shape":"MicroVMImageVersionList",
++          "documentation":"<p>The list of versions for the given MicroVM image.</p>"
++        },
++        "nextToken":{
++          "shape":"NextToken",
++          "documentation":"<p>The next token for pagination.</p>"
++        }
++      }
++    },
++    "ListMicroVMImagesInput":{
++      "type":"structure",
++      "members":{
++        "nameFilter":{"shape":"NonBlankString"},
++        "architecture":{"shape":"Architecture"},
++        "buildState":{"shape":"BuildState"},
++        "maxResults":{"shape":"Integer"},
++        "nextToken":{"shape":"NonBlankString"}
++      }
++    },
++    "ListMicroVMImagesOutput":{
++      "type":"structure",
++      "members":{
++        "microVMImages":{"shape":"MicroVMImageSummaries"},
++        "nextToken":{"shape":"String"}
++      }
++    },
++    "ListMicroVMsRequest":{
++      "type":"structure",
++      "members":{
++        "microVMMeshId":{
++          "shape":"String",
++          "documentation":"<p>The MicroVM mesh identifier.</p>"
++        },
++        "microVMImageArn":{
++          "shape":"String",
++          "documentation":"<p>The MicroVM image ARN filter (optional).</p>"
++        },
++        "microVMImageVersion":{
++          "shape":"String",
++          "documentation":"<p>The MicroVM image version filter (optional).</p>"
++        },
++        "nextToken":{
++          "shape":"NextToken",
++          "documentation":"<p>The token used for pagination.</p>"
++        },
++        "maxResults":{
++          "shape":"PositiveInteger",
++          "documentation":"<p>The maximum number of results to return.</p>"
++        }
++      }
++    },
++    "ListMicroVMsResponse":{
++      "type":"structure",
++      "required":["microVMs"],
++      "members":{
++        "microVMs":{
++          "shape":"MicroVMSummaryList",
++          "documentation":"<p>The summary of the MicroVMs found.</p>"
++        },
++        "nextToken":{
++          "shape":"NextToken",
++          "documentation":"<p>The token used for pagination.</p>"
++        }
++      }
++    },
++    "ListOfPortRange":{
++      "type":"list",
++      "member":{"shape":"PortRange"},
++      "documentation":"<p>A list of port ranges.</p>"
++    },
++    "LoggingConfig":{
++      "type":"structure",
++      "members":{
++        "logGroup":{
++          "shape":"LoggingConfigLogGroupString",
++          "documentation":"<p>The name of the CloudWatch log group to ship customer logs to.</p>"
++        },
++        "logStream":{
++          "shape":"LoggingConfigLogStreamString",
++          "documentation":"<p>The name of the CloudWatch log stream to ship customer logs to. If not provided, defaults to the MicroVMId.</p>"
++        }
++      },
++      "documentation":"<p>Defines the logging configuration for customer logs in the MicroVM</p>"
++    },
++    "LoggingConfigLogGroupString":{
++      "type":"string",
++      "max":512,
++      "min":1,
++      "pattern":"[a-zA-Z0-9_\\-/.#]+"
++    },
++    "LoggingConfigLogStreamString":{
++      "type":"string",
++      "max":512,
++      "min":1,
++      "pattern":"[^:*]*"
++    },
++    "Long":{
++      "type":"long",
++      "box":true
++    },
++    "ManagedMicroVMImageSummary":{
++      "type":"structure",
++      "required":[
++        "name",
++        "arn",
++        "creationTime",
++        "lastUpdatedTime"
++      ],
++      "members":{
++        "name":{
++          "shape":"String",
++          "documentation":"<p>Managed mVMI name</p>"
++        },
++        "arn":{
++          "shape":"String",
++          "documentation":"<p>Managed mVMI ARN</p>"
++        },
++        "creationTime":{
++          "shape":"Long",
++          "documentation":"<p>Epoch timestamp (milliseconds) when the managed mVMI was created</p>"
++        },
++        "lastUpdatedTime":{
++          "shape":"Long",
++          "documentation":"<p>Epoch timestamp (milliseconds) when the managed mVMI was last updated</p>"
++        }
++      }
++    },
++    "ManagedMicroVMImageSummaryList":{
++      "type":"list",
++      "member":{"shape":"ManagedMicroVMImageSummary"}
++    },
++    "ManagedMicroVMImageVersion":{
++      "type":"structure",
++      "required":[
++        "name",
++        "major",
++        "platformVersion",
++        "creationTime",
++        "lastUpdatedTime"
++      ],
++      "members":{
++        "name":{
++          "shape":"String",
++          "documentation":"<p>Managed mVMI name</p>"
++        },
++        "major":{
++          "shape":"Integer",
++          "documentation":"<p>Major version number</p>"
++        },
++        "platformVersion":{
++          "shape":"String",
++          "documentation":"<p>PlatformVersion semantic version</p>"
++        },
++        "creationTime":{
++          "shape":"Long",
++          "documentation":"<p>Epoch timestamp (milliseconds) when the version was created</p>"
++        },
++        "lastUpdatedTime":{
++          "shape":"Long",
++          "documentation":"<p>Epoch timestamp (milliseconds) when the version was last updated</p>"
++        }
++      }
++    },
++    "ManagedMicroVMImageVersionList":{
++      "type":"list",
++      "member":{"shape":"ManagedMicroVMImageVersion"}
++    },
++    "MicroVMId":{
++      "type":"string",
++      "max":100,
++      "min":1,
++      "pattern":"[^\\s]+"
++    },
++    "MicroVMImageArn":{
++      "type":"string",
++      "documentation":"<p>MicroVM Image Arn</p>",
++      "max":2048,
++      "min":20
++    },
++    "MicroVMImageBuild":{
++      "type":"structure",
++      "required":[
++        "buildId",
++        "accountId",
++        "microVMImageArn",
++        "microVMImageVersion",
++        "architecture",
++        "chipset",
++        "chipsetGeneration",
++        "state",
++        "managedMicroVMImageArn",
++        "creationTime",
++        "lastUpdatedTime"
++      ],
++      "members":{
++        "microVMImageVersionId":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Unique identifier combining MicroVM image and version IDs</p>",
++          "deprecated":true,
++          "deprecatedMessage":"Deprecated internal field"
++        },
++        "buildId":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Unique identifier for this build</p>"
++        },
++        "accountId":{
++          "shape":"NonBlankString",
++          "documentation":"<p>AWS account ID that owns this build</p>"
++        },
++        "microVMImageArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>MicroVMImage ARN this build belongs to</p>"
++        },
++        "microVMImageVersion":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Version ID this build belongs to</p>"
++        },
++        "architecture":{
++          "shape":"Architecture",
++          "documentation":"<p>Target architecture for this build</p>"
++        },
++        "chipset":{
++          "shape":"Chipset",
++          "documentation":"<p>Target chipset for this build</p>"
++        },
++        "chipsetGeneration":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Target chipset generation</p>"
++        },
++        "state":{
++          "shape":"BuildState",
++          "documentation":"<p>Current state of the build</p>"
++        },
++        "managedMicroVMImageId":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Identifier for the managed MicroVM image</p>",
++          "deprecated":true,
++          "deprecatedMessage":"Deprecated internal field"
++        },
++        "managedMicroVMImageArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Identifier for the managed MicroVM image</p>"
++        },
++        "failureReason":{
++          "shape":"String",
++          "documentation":"<p>Reason for failure if build is in a failed state</p>"
++        },
++        "creationTime":{
++          "shape":"Timestamp",
++          "documentation":"<p>Timestamp when the build was created</p>"
++        },
++        "lastUpdatedTime":{
++          "shape":"Timestamp",
++          "documentation":"<p>Timestamp when the build was last updated</p>"
++        }
++      },
++      "documentation":"<p>MicroVMImage build entity representing a build for a specific MicroVM image version</p>"
++    },
++    "MicroVMImageBuildList":{
++      "type":"list",
++      "member":{"shape":"MicroVMImageBuild"},
++      "documentation":"<p>List of MicroVM image build entities</p>"
++    },
++    "MicroVMImageState":{
++      "type":"string",
++      "enum":[
++        "CREATING",
++        "CREATED",
++        "CREATION_FAILED",
++        "UPDATING",
++        "UPDATED",
++        "UPDATE_FAILED",
++        "DELETING",
++        "DELETION_FAILED",
++        "DELETED"
++      ]
++    },
++    "MicroVMImageSummaries":{
++      "type":"list",
++      "member":{"shape":"MicroVMImageSummary"},
++      "documentation":"<p>List of MicroVM image summaries</p>"
++    },
++    "MicroVMImageSummary":{
++      "type":"structure",
++      "required":[
++        "microVMImageArn",
++        "name",
++        "state",
++        "baseMicroVMImageArn"
++      ],
++      "members":{
++        "microVMImageArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Arn of the MicroVM image</p>"
++        },
++        "name":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Human-readable name for the MicroVM image</p>"
++        },
++        "state":{
++          "shape":"MicroVMImageState",
++          "documentation":"<p>Current state of the MicroVM image</p>"
++        },
++        "baseMicroVMImageArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Arn of the managed MicroVM image</p>"
++        },
++        "ingressNetworkConnectors":{
++          "shape":"NetworkConnectorList",
++          "documentation":"<p>List of ingress network connectors for the microVM image</p>"
++        },
++        "egressNetworkConnectors":{
++          "shape":"NetworkConnectorList",
++          "documentation":"<p>List of egress network connectors for the microVM image</p>"
++        },
++        "snapshotEncryptionKeyArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>ARN of the KMS key used to encrypt snapshots created during the image build process. An AWS Managed Key will be used by default if a CMK is not provided.</p>"
++        },
++        "snapshotConfig":{
++          "shape":"SnapshotConfig",
++          "documentation":"<p>Configuration settings for MicroVM image snapshot</p>"
++        },
++        "buildRoleArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>ARN of the IAM build role that grants permissions to build and manage the microVM image</p>"
++        },
++        "codeArtifact":{
++          "shape":"CodeArtifact",
++          "documentation":"<p>code artifact for the active MicroVM image</p>"
++        },
++        "description":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Description of the MicroVM image</p>"
++        },
++        "activeVersion":{
++          "shape":"Integer",
++          "documentation":"<p>The latest active version of MicroVM image.</p>"
++        },
++        "failureReason":{
++          "shape":"NonBlankString",
++          "documentation":"<p>The reason why the latest build failed.</p>"
++        },
++        "tags":{
++          "shape":"TagMap",
++          "documentation":"<p>Key-value pairs for MicroVM image metadata</p>"
++        },
++        "creationTime":{
++          "shape":"Timestamp",
++          "documentation":"<p>Timestamp when the MicroVM image was created</p>"
++        }
++      },
++      "documentation":"<p>Represents a MicroVM Image and metadata</p>"
++    },
++    "MicroVMImageVersion":{
++      "type":"structure",
++      "required":[
++        "microVMImageArn",
++        "versionId",
++        "accountId",
++        "state",
++        "codeArtifact",
++        "encryptionKeyArn",
++        "managedMicroVMImageId",
++        "executionRoleARN",
++        "description",
++        "tags",
++        "versionStateTimeBucket",
++        "creationTime",
++        "lastUpdatedTime"
++      ],
++      "members":{
++        "microVMImageArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>MicroVMImage ID this version belongs to</p>"
++        },
++        "versionId":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Unique identifier for this version</p>"
++        },
++        "accountId":{
++          "shape":"NonBlankString",
++          "documentation":"<p>AWS account ID that owns this version</p>"
++        },
++        "state":{
++          "shape":"VersionState",
++          "documentation":"<p>Current state of the version</p>"
++        },
++        "codeArtifact":{
++          "shape":"CodeArtifact",
++          "documentation":"<p>Code artifact information</p>"
++        },
++        "encryptionKeyArn":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Encryption key ARN for this version</p>"
++        },
++        "managedMicroVMImageId":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Identifier for the managed MicroVM image</p>"
++        },
++        "executionRoleARN":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Execution role ARN for this version</p>"
++        },
++        "networkInterfaces":{
++          "shape":"NetworkInterfaceList",
++          "documentation":"<p>Network interface configurations</p>"
++        },
++        "failureReason":{
++          "shape":"String",
++          "documentation":"<p>Reason for failure if version is in a failed state</p>"
++        },
++        "description":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Description of the version</p>"
++        },
++        "tags":{
++          "shape":"TagMap",
++          "documentation":"<p>Key-value pairs for version metadata</p>"
++        },
++        "versionStateTimeBucket":{
++          "shape":"NonBlankString",
++          "documentation":"<p>State-time bucket for efficient querying by state and time period</p>"
++        },
++        "creationTime":{
++          "shape":"Timestamp",
++          "documentation":"<p>Timestamp when the version was created</p>"
++        },
++        "lastUpdatedTime":{
++          "shape":"Timestamp",
++          "documentation":"<p>Timestamp when the version was last updated</p>"
++        }
++      },
++      "documentation":"<p>MicroVMImage version entity representing a version of a MicroVM image</p>"
++    },
++    "MicroVMImageVersionList":{
++      "type":"list",
++      "member":{"shape":"MicroVMImageVersion"},
++      "documentation":"<p>List of MicroVM image version entities</p>"
++    },
++    "MicroVMState":{
++      "type":"string",
++      "documentation":"<p>The lifecycle state of a MicroVM.</p>",
++      "enum":[
++        "PENDING",
++        "RUNNING",
++        "SUSPENDING",
++        "SUSPENDED",
++        "TERMINATING",
++        "TERMINATED"
++      ]
++    },
++    "MicroVMSummary":{
++      "type":"structure",
++      "required":[
++        "microVMId",
++        "microVMState"
++      ],
++      "members":{
++        "microVMId":{
++          "shape":"MicroVMId",
++          "documentation":"<p>The ID of the MicroVM (maps to applicationInstanceId).</p>"
++        },
++        "microVMState":{
++          "shape":"MicroVMState",
++          "documentation":"<p>The current state of the MicroVM.</p>"
++        },
++        "microVMImageArn":{
++          "shape":"MicroVMImageArn",
++          "documentation":"<p>The ARN of the MicroVM image.</p>"
++        },
++        "microVMImageVersion":{
++          "shape":"Version",
++          "documentation":"<p>The version of the MicroVM image.</p>"
++        },
++        "launchDate":{
++          "shape":"Timestamp",
++          "documentation":"<p>The time when the MicroVM was launched.</p>"
++        }
++      }
++    },
++    "MicroVMSummaryList":{
++      "type":"list",
++      "member":{"shape":"MicroVMSummary"}
++    },
++    "NetworkConnector":{"type":"string"},
++    "NetworkConnectorList":{
++      "type":"list",
++      "member":{"shape":"NetworkConnector"}
++    },
++    "NetworkInterface":{
++      "type":"structure",
++      "required":["networkInterfaceId"],
++      "members":{
++        "networkInterfaceId":{
++          "shape":"NonBlankString",
++          "documentation":"<p>Network interface identifier</p>"
++        }
++      },
++      "documentation":"<p>Network interface configuration</p>"
++    },
++    "NetworkInterfaceList":{
++      "type":"list",
++      "member":{"shape":"NetworkInterface"},
++      "documentation":"<p>List of network interfaces</p>"
++    },
++    "NextToken":{
++      "type":"string",
++      "min":1,
++      "pattern":"[^\\s]+"
++    },
++    "NonBlankString":{
++      "type":"string",
++      "documentation":"<p>A string which is not empty or blank (only whitespace).</p>",
++      "max":2048,
++      "min":1,
++      "pattern":"[^\\s]+"
++    },
++    "NonEmptyString":{
++      "type":"string",
++      "max":2048,
++      "min":0
++    },
++    "OperationalConfig":{
++      "type":"structure",
++      "members":{
++        "terminationDelay":{"shape":"Integer"},
++        "shellEnabled":{"shape":"Boolean"}
++      },
++      "documentation":"<p>Configurations for supporting MicroVM debugging.</p>"
++    },
++    "PassRoleCheck":{
++      "type":"structure",
++      "members":{
++        "passedRoleArn":{
++          "shape":"RoleArn",
++          "documentation":"<p>The ARN of the IAM role being passed.</p>"
++        },
++        "associatedResourceArn":{
++          "shape":"Arn",
++          "documentation":"<p>The ARN of the resource associated with the PassRole operation.</p>"
++        }
++      },
++      "documentation":"<p>Contains information for PassRole verification, including the role ARN being passed and the associated resource ARN.</p>"
++    },
++    "PassRoleCheckList":{
++      "type":"list",
++      "member":{"shape":"PassRoleCheck"},
++      "documentation":"<p>List of PassRole checks required for authorization verification.</p>"
++    },
++    "PortNumber":{
++      "type":"integer",
++      "documentation":"<p>Represents a single port.</p>",
++      "box":true,
++      "max":65535,
++      "min":1
++    },
++    "PortRange":{
++      "type":"structure",
++      "members":{
++        "startPort":{
++          "shape":"PortNumber",
++          "documentation":"<p>The lower limit of the port range. This must be less than or equal to the ToPort specification.</p>"
++        },
++        "endPort":{
++          "shape":"PortNumber",
++          "documentation":"<p>The upper limit of the port range. This must be greater than or equal to the FromPort specification.</p>"
++        }
++      },
++      "documentation":"<p>A single port range specification.</p>"
++    },
++    "PositiveInteger":{
++      "type":"integer",
++      "box":true,
++      "min":1
++    },
++    "PositiveLong":{
++      "type":"long",
++      "box":true,
++      "min":1
++    },
++    "ResourceArn":{
++      "type":"string",
++      "documentation":"<p>Describes the arn of the resource being authorized.</p>"
++    },
++    "ResourceNotFoundException":{
++      "type":"structure",
++      "required":["message"],
++      "members":{
++        "message":{"shape":"String"},
++        "resourceType":{
++          "shape":"String",
++          "documentation":"<p>Type of resource that was not found</p>"
++        },
++        "resourceId":{
++          "shape":"String",
++          "documentation":"<p>ID of the resource that was not found</p>"
++        }
++      },
++      "documentation":"<p>Resource not found error</p>",
++      "exception":true
++    },
++    "ResourceNotReadyException":{
++      "type":"structure",
++      "members":{
++        "message":{"shape":"String"}
++      },
++      "documentation":"<p>Exception is thrown when the service is unable to find ACTIVE resource to serve the request</p>",
++      "exception":true
++    },
++    "ResourcePolicies":{
++      "type":"list",
++      "member":{"shape":"ResourcePolicy"},
++      "documentation":"<p>Enumerates the resource policies attached to the resource being authorized.</p>"
++    },
++    "ResourcePolicy":{
++      "type":"string",
++      "documentation":"<p>Describes a stringified resource policy.</p>"
++    },
++    "ResourcePolicyMap":{
++      "type":"map",
++      "key":{"shape":"ResourceArn"},
++      "value":{"shape":"ResourcePolicies"},
++      "documentation":"<p>Map of resource ARNs to their associated resource policies</p>"
++    },
++    "ResourceSpec":{
++      "type":"structure",
++      "required":[
++        "minVCPUs",
++        "minMemoryMB"
++      ],
++      "members":{
++        "minVCPUs":{"shape":"Integer"},
++        "minMemoryMB":{"shape":"Integer"},
++        "maxVCPUs":{"shape":"Integer"},
++        "maxMemoryMB":{"shape":"Integer"}
++      },
++      "documentation":"<p>Specification of minimum and maximum CPU and memory resources to be allocated to a MicroVM.</p>"
++    },
++    "ResourceSpecList":{
++      "type":"list",
++      "member":{"shape":"ResourceSpec"}
++    },
++    "ResourceSpecification":{
++      "type":"structure",
++      "required":[
++        "minVCPUs",
++        "minMemoryMB"
++      ],
++      "members":{
++        "minVCPUs":{"shape":"Integer"},
++        "minMemoryMB":{"shape":"Integer"},
++        "maxVCPUs":{"shape":"Integer"},
++        "maxMemoryMB":{"shape":"Integer"}
++      }
++    },
++    "ResumeMicroVMRequest":{
++      "type":"structure",
++      "required":["microVMId"],
++      "members":{
++        "microVMId":{
++          "shape":"MicroVMId",
++          "documentation":"<p>The ID of the MicroVM to resume.</p>"
++        }
++      }
++    },
++    "ResumeMicroVMResponse":{
++      "type":"structure",
++      "members":{}
++    },
++    "RoleArn":{
++      "type":"string",
++      "documentation":"<p>Role Arn</p>",
++      "max":2048,
++      "min":20,
++      "pattern":"arn:aws[a-z\\-]*:iam::[0-9]{12}:role/?[a-zA-Z_0-9+=,.@\\-_/]+"
++    },
++    "SnapshotConfig":{
++      "type":"structure",
++      "members":{
++        "microVMImageOptimizedSnapshottingEnabled":{
++          "shape":"Boolean",
++          "documentation":"<p>Toggle optimized snapshotting for the MicroVM image</p>"
++        },
++        "resourceSpecs":{
++          "shape":"ResourceSpecList",
++          "documentation":"<p>List of resource specifications</p>"
++        },
++        "cpuSpecs":{
++          "shape":"CPUSpecList",
++          "documentation":"<p>List of CPU specifications</p>"
++        }
++      },
++      "documentation":"<p>MicroVM image snapshot optimization configuration</p>"
++    },
++    "String":{"type":"string"},
++    "SuspendMicroVMRequest":{
++      "type":"structure",
++      "required":["microVMId"],
++      "members":{
++        "microVMId":{
++          "shape":"MicroVMId",
++          "documentation":"<p>The ID of the MicroVM to suspend.</p>"
++        }
++      }
++    },
++    "SuspendMicroVMResponse":{
++      "type":"structure",
++      "members":{}
++    },
++    "TagMap":{
++      "type":"map",
++      "key":{"shape":"NonBlankString"},
++      "value":{"shape":"NonBlankString"},
++      "documentation":"<p>Map of tag key-value pairs</p>"
++    },
++    "TerminateMicroVMRequest":{
++      "type":"structure",
++      "required":["microVMId"],
++      "members":{
++        "microVMId":{
++          "shape":"MicroVMId",
++          "documentation":"<p>The ID of the MicroVM to terminate.</p>"
++        }
++      }
++    },
++    "TerminateMicroVMResponse":{
++      "type":"structure",
++      "members":{}
++    },
++    "ThrottlingException":{
++      "type":"structure",
++      "members":{
++        "message":{"shape":"String"}
++      },
++      "documentation":"<p>The request was denied due to request throttling. Reduce the frequency of requests and try again.</p>",
++      "exception":true,
++      "retryable":{"throttling":true}
++    },
++    "Timestamp":{"type":"timestamp"},
++    "TokenParts":{
++      "type":"map",
++      "key":{"shape":"String"},
++      "value":{"shape":"String"}
++    },
++    "UserData":{
++      "type":"string",
++      "max":16000,
++      "min":1,
++      "sensitive":true
++    },
++    "Version":{"type":"string"},
++    "VersionState":{
++      "type":"string",
++      "enum":[
++        "PENDING",
++        "IN_PROGRESS",
++        "SUCCESSFUL",
++        "FAILED",
++        "DEGRADED",
++        "DELETING",
++        "DELETED"
++      ]
++    }
++  },
++  "documentation":"<p>Service for managing Lambda MicroVMs and their microVMImages.</p> <p>This service provides APIs to create, manage, and operate Lambda MicroVMs and their associated microVMImage environments.</p>"
++}
+diff --git a/docs/source/conf.py b/docs/source/conf.py
+index 50b3cd0be..aa90f7973 100644
+--- a/docs/source/conf.py
++++ b/docs/source/conf.py
+@@ -59,7 +59,7 @@ copyright = f'{current_year}, Amazon Web Services, Inc'
+ # The short X.Y version.
+ version = '1.42.'
+ # The full version, including alpha/beta/rc tags.
+-release = '1.42.38'
++release = '1.42.39'
+ 
+ # The language for content autogenerated by Sphinx. Refer to documentation
+ # for a list of supported languages.
+diff --git a/tests/functional/endpoint-rules/signer/endpoint-tests-1.json b/tests/functional/endpoint-rules/lambdamicrovms/endpoint-tests-1.json
+similarity index 88%
+copy from tests/functional/endpoint-rules/signer/endpoint-tests-1.json
+copy to tests/functional/endpoint-rules/lambdamicrovms/endpoint-tests-1.json
+index a54e5868f..1dc3aaa47 100644
+--- a/tests/functional/endpoint-rules/signer/endpoint-tests-1.json
++++ b/tests/functional/endpoint-rules/lambdamicrovms/endpoint-tests-1.json
+@@ -4,7 +4,7 @@
+             "documentation": "For region us-east-1 with FIPS enabled and DualStack enabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer-fips.us-east-1.api.aws"
++                    "url": "https://lambda-fips.us-east-1.api.aws"
+                 }
+             },
+             "params": {
+@@ -17,7 +17,7 @@
+             "documentation": "For region us-east-1 with FIPS enabled and DualStack disabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer-fips.us-east-1.amazonaws.com"
++                    "url": "https://lambda-fips.us-east-1.amazonaws.com"
+                 }
+             },
+             "params": {
+@@ -30,7 +30,7 @@
+             "documentation": "For region us-east-1 with FIPS disabled and DualStack enabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer.us-east-1.api.aws"
++                    "url": "https://lambda.us-east-1.api.aws"
+                 }
+             },
+             "params": {
+@@ -43,7 +43,7 @@
+             "documentation": "For region us-east-1 with FIPS disabled and DualStack disabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer.us-east-1.amazonaws.com"
++                    "url": "https://lambda.us-east-1.amazonaws.com"
+                 }
+             },
+             "params": {
+@@ -56,7 +56,7 @@
+             "documentation": "For region cn-north-1 with FIPS enabled and DualStack enabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer-fips.cn-north-1.api.amazonwebservices.com.cn"
++                    "url": "https://lambda-fips.cn-north-1.api.amazonwebservices.com.cn"
+                 }
+             },
+             "params": {
+@@ -69,7 +69,7 @@
+             "documentation": "For region cn-north-1 with FIPS enabled and DualStack disabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer-fips.cn-north-1.amazonaws.com.cn"
++                    "url": "https://lambda-fips.cn-north-1.amazonaws.com.cn"
+                 }
+             },
+             "params": {
+@@ -82,7 +82,7 @@
+             "documentation": "For region cn-north-1 with FIPS disabled and DualStack enabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer.cn-north-1.api.amazonwebservices.com.cn"
++                    "url": "https://lambda.cn-north-1.api.amazonwebservices.com.cn"
+                 }
+             },
+             "params": {
+@@ -95,7 +95,7 @@
+             "documentation": "For region cn-north-1 with FIPS disabled and DualStack disabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer.cn-north-1.amazonaws.com.cn"
++                    "url": "https://lambda.cn-north-1.amazonaws.com.cn"
+                 }
+             },
+             "params": {
+@@ -108,7 +108,7 @@
+             "documentation": "For region us-gov-east-1 with FIPS enabled and DualStack enabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer-fips.us-gov-east-1.api.aws"
++                    "url": "https://lambda-fips.us-gov-east-1.api.aws"
+                 }
+             },
+             "params": {
+@@ -121,7 +121,7 @@
+             "documentation": "For region us-gov-east-1 with FIPS enabled and DualStack disabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer-fips.us-gov-east-1.amazonaws.com"
++                    "url": "https://lambda-fips.us-gov-east-1.amazonaws.com"
+                 }
+             },
+             "params": {
+@@ -134,7 +134,7 @@
+             "documentation": "For region us-gov-east-1 with FIPS disabled and DualStack enabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer.us-gov-east-1.api.aws"
++                    "url": "https://lambda.us-gov-east-1.api.aws"
+                 }
+             },
+             "params": {
+@@ -147,7 +147,7 @@
+             "documentation": "For region us-gov-east-1 with FIPS disabled and DualStack disabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer.us-gov-east-1.amazonaws.com"
++                    "url": "https://lambda.us-gov-east-1.amazonaws.com"
+                 }
+             },
+             "params": {
+@@ -160,7 +160,7 @@
+             "documentation": "For region us-iso-east-1 with FIPS enabled and DualStack disabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer-fips.us-iso-east-1.c2s.ic.gov"
++                    "url": "https://lambda-fips.us-iso-east-1.c2s.ic.gov"
+                 }
+             },
+             "params": {
+@@ -173,7 +173,7 @@
+             "documentation": "For region us-iso-east-1 with FIPS disabled and DualStack disabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer.us-iso-east-1.c2s.ic.gov"
++                    "url": "https://lambda.us-iso-east-1.c2s.ic.gov"
+                 }
+             },
+             "params": {
+@@ -186,7 +186,7 @@
+             "documentation": "For region us-isob-east-1 with FIPS enabled and DualStack disabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer-fips.us-isob-east-1.sc2s.sgov.gov"
++                    "url": "https://lambda-fips.us-isob-east-1.sc2s.sgov.gov"
+                 }
+             },
+             "params": {
+@@ -199,7 +199,7 @@
+             "documentation": "For region us-isob-east-1 with FIPS disabled and DualStack disabled",
+             "expect": {
+                 "endpoint": {
+-                    "url": "https://signer.us-isob-east-1.sc2s.sgov.gov"
++                    "url": "https://lambda.us-isob-east-1.sc2s.sgov.gov"
+                 }
+             },
+             "params": {

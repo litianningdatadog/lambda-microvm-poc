@@ -1,0 +1,49 @@
+This is a review of all the changes from the last release to the current (staged) release. Below is a summary of the commits:
+
+commit 873575869c5044f3645927831dae8444e03d0d12
+Merge: 668959231 005690f3c
+Author: aws-sdk-python-automation <github-aws-sdk-python-automation@amazon.com>
+Date:   Thu Jan 29 21:19:23 2026 +0000
+
+    Merge branch 'release-1.44.29'
+    
+    * release-1.44.29:
+      Bumping version to 1.44.29
+      Update changelog based on model updates
+
+commit 005690f3c66974e5c55a820620cc2d2b5e95c7f4
+Author: aws-sdk-python-automation <github-aws-sdk-python-automation@amazon.com>
+Date:   Thu Jan 29 21:19:22 2026 +0000
+
+    Bumping version to 1.44.29
+
+ .changes/1.44.29.json                                      | 12 ++++++++++++
+ .changes/next-release/api-change-endpointrules-3307.json   |  5 -----
+ .changes/next-release/api-change-lambdamicrovms-56870.json |  5 -----
+ CHANGELOG.rst                                              |  7 +++++++
+ awscli/__init__.py                                         |  2 +-
+ doc/source/conf.py                                         |  2 +-
+ setup.cfg                                                  |  2 +-
+ setup.py                                                   |  2 +-
+ 8 files changed, 23 insertions(+), 14 deletions(-)
+
+commit 64240fd119a3eb47d3204aaa57bc8cdc745f5eef
+Author: aws-sdk-python-automation <github-aws-sdk-python-automation@amazon.com>
+Date:   Thu Jan 29 21:17:32 2026 +0000
+
+    Update changelog based on model updates
+
+ .changes/next-release/api-change-endpointrules-3307.json   | 5 +++++
+ .changes/next-release/api-change-lambdamicrovms-56870.json | 5 +++++
+ 2 files changed, 10 insertions(+)
+
+commit 88513be7ac0b8fcd6e59bd593986fa9bea4a9d49
+Merge: 92cc06e1a e8711820e
+Author: aws-sdk-python-automation <github-aws-sdk-python-automation@amazon.com>
+Date:   Thu Jan 29 19:17:45 2026 +0000
+
+    Merge branch 'release-1.44.28' into develop
+    
+    * release-1.44.28:
+      Bumping version to 1.44.28
+      Update changelog based on model updates

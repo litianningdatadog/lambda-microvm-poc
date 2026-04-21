@@ -1,0 +1,155 @@
+{
+    "openapi": "3.0.2",
+    "info": {
+        "title": "Lambda MicroVMs Application Platform Interface",
+        "version": "2025-12-03"
+    },
+    "paths": {
+        "/launch": {
+            "post": {
+                "description": "Operation is called by the application when a microVM is launched.\n",
+                "operationId": "Launch",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LaunchRequestContent"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Launch 200 response"
+                    },
+                    "404": {
+                        "description": "NotFoundException 404 response"
+                    },
+                    "405": {
+                        "description": "MethodNotAllowedException 405 response"
+                    },
+                    "500": {
+                        "description": "InternalServerException 500 response"
+                    },
+                    "501": {
+                        "description": "NotImplementedException 501 response"
+                    }
+                }
+            }
+        },
+        "/ready": {
+            "post": {
+                "description": "Operation is called by the platform to determine if the application has booted.\n",
+                "operationId": "Ready",
+                "responses": {
+                    "200": {
+                        "description": "Ready 200 response"
+                    },
+                    "404": {
+                        "description": "NotFoundException 404 response"
+                    },
+                    "405": {
+                        "description": "MethodNotAllowedException 405 response"
+                    },
+                    "500": {
+                        "description": "InternalServerException 500 response"
+                    },
+                    "501": {
+                        "description": "NotImplementedException 501 response"
+                    }
+                }
+            }
+        },
+        "/resume": {
+            "post": {
+                "description": "Operation is called by the platform when resuming the microVM.\n",
+                "operationId": "Resume",
+                "responses": {
+                    "200": {
+                        "description": "Resume 200 response"
+                    },
+                    "404": {
+                        "description": "NotFoundException 404 response"
+                    },
+                    "405": {
+                        "description": "MethodNotAllowedException 405 response"
+                    },
+                    "500": {
+                        "description": "InternalServerException 500 response"
+                    },
+                    "501": {
+                        "description": "NotImplementedException 501 response"
+                    }
+                }
+            }
+        },
+        "/suspend": {
+            "post": {
+                "description": "Operation is called by the platform when suspending the microVM.\n",
+                "operationId": "Suspend",
+                "responses": {
+                    "200": {
+                        "description": "Suspend 200 response"
+                    },
+                    "404": {
+                        "description": "NotFoundException 404 response"
+                    },
+                    "405": {
+                        "description": "MethodNotAllowedException 405 response"
+                    },
+                    "500": {
+                        "description": "InternalServerException 500 response"
+                    },
+                    "501": {
+                        "description": "NotImplementedException 501 response"
+                    }
+                }
+            }
+        },
+        "/terminate": {
+            "post": {
+                "description": "Operation is called by the platform when terminating the microVM.\n",
+                "operationId": "Terminate",
+                "responses": {
+                    "200": {
+                        "description": "Terminate 200 response"
+                    },
+                    "404": {
+                        "description": "NotFoundException 404 response"
+                    },
+                    "405": {
+                        "description": "MethodNotAllowedException 405 response"
+                    },
+                    "500": {
+                        "description": "InternalServerException 500 response"
+                    },
+                    "501": {
+                        "description": "NotImplementedException 501 response"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "LaunchRequestContent": {
+                "type": "object",
+                "properties": {
+                    "microVmId": {
+                        "type": "string",
+                        "description": "The microVM ID."
+                    },
+                    "meshIpv6Address": {
+                        "type": "string",
+                        "description": "The private IPv6 address to use with mesh communication mode."
+                    }
+                }
+            }
+        }
+    },
+    "servers": [
+        {
+            "url": "/aws/lambda-microvms/runtime/beta/v1"
+        }
+    ]
+}

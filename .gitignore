@@ -1,0 +1,37 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+# The SDK-install venv path recommended in CLAUDE.md
+Boto3CliV1Artifacts/python-sdk-test/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Rust build output (microvm-sidecar also has its own /target rule;
+# duplicated here so ad-hoc builds outside that package are also covered)
+target/
+
+# Local tool notifications
+claude-notifications.jsonl
+
+# Windows installers bundled in the preview kit — not referenced by CLAUDE.md,
+# and AWSCLISetup.exe (~100 MB) hits GitHub's per-file limit.
+Boto3CliV1Artifacts/*.exe
+Boto3CliV1Artifacts/*.msi
+Boto3CliV1Artifacts/awscli-bundle.zip
+
+# Do NOT ignore these — they are preview-kit deliverables, not build output:
+#   Boto3CliV1Artifacts/*.whl                    custom preview SDK wheels (Python)
+#   Boto3CliV1Artifacts/*.tar.gz                 source distributions
+#   *.zip (at repo root)                         uploadable MicroVM Image artifacts
+#   sample-flask-app-using-serverless-comp-poc/datadog-serverless-compat    ARM64 sidecar binary
