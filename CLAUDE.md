@@ -76,19 +76,33 @@ client = boto3.client(
 
 Package your app as a zip containing a `Dockerfile` at the root, upload to S3 (us-east-2), then:
 
+```shell
+cd <YOUR_MICROVM_APP_DIR>
+ZIP_PATH="$(dirname "$PWD")/$(basename "$PWD").zip"
+zip -r "$ZIP_PATH" . -x '*.DS_Store' 'claude-notifications.jsonl'
+echo "Created: $ZIP_PATH"
+```
+
 [S3 bucket example](https://us-east-2.console.aws.amazon.com/s3/buckets/microvm-425362996713-us-east-2-an?region=us-east-2&tab=objects)
 
 [microvm-build-role](https://us-east-1.console.aws.amazon.com/iam/home?region=us-east-2#/roles/details/microvm-build-role)
 
 ```bash
+# Convention: one S3 bucket per app (bucket name = app name).
+# Object key is just a timestamp — the bucket already disambiguates:
+#   s3://<app-name>/YYYYMMDD_HHMMSS.zip
+# Old builds stay in the bucket so you can roll back by pointing a new
+# image at a prior key.
 awsv aws lambda-microvms create-micro-vm-image \
-  --code-artifact uri=s3://microvm-425362996713-us-east-2-an/simple-python-repl-app.zip\
+  --code-artifact uri=s3://simple-python-repl-app/20260421_095217.zip \
   --name simple-python-repl-app \
   --base-micro-vm-image-arn arn:aws:lambda:::microvm-image:lambda-microvms-al2023-1 \
   --build-role-arn arn:aws:iam::425362996713:role/microvm-build-role \
   --region us-east-2 \
   --endpoint https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev
 ```
+
+For the full zip → upload → create → poll → launch flow in one command, use `./deploy-microvm.sh <app-dir>`.
 
 Build logs stream to CloudWatch under `/aws/lambda/microvms/<image-name>`.
 

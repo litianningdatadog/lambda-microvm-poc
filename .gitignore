@@ -24,6 +24,10 @@ target/
 # Local tool notifications
 claude-notifications.jsonl
 
+# deploy-microvm.sh writes MicroVM auth tokens here — short-lived secrets
+# (30-min expiry) but should never land in git.
+.microvm-token.*
+
 # Windows installers bundled in the preview kit — not referenced by CLAUDE.md,
 # and AWSCLISetup.exe (~100 MB) hits GitHub's per-file limit.
 Boto3CliV1Artifacts/*.exe
@@ -35,3 +39,5 @@ Boto3CliV1Artifacts/awscli-bundle.zip
 #   Boto3CliV1Artifacts/*.tar.gz                 source distributions
 #   *.zip (at repo root)                         uploadable MicroVM Image artifacts
 #   sample-flask-app-using-serverless-comp-poc/datadog-serverless-compat    ARM64 sidecar binary
+/sample-flask-app-serverless-init-po*.zip
+/sample-flask-app-serverless-init-poc/serverless-init-linux-arm64
