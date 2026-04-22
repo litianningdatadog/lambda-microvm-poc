@@ -41,3 +41,4 @@ Boto3CliV1Artifacts/awscli-bundle.zip
 #   sample-flask-app-using-serverless-comp-poc/datadog-serverless-compat    ARM64 sidecar binary
 /sample-flask-app-serverless-init-po*.zip
 /sample-flask-app-serverless-init-poc/serverless-init-linux-arm64
+/sample-flask-app-serverless-init-poc/run.log

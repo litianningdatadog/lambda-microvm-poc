@@ -1,4 +1,5 @@
-FROM --platform=linux/arm64 public.ecr.aws/amazonlinux/amazonlinux:2023
+# FROM --platform=linux/arm64 public.ecr.aws/amazonlinux/amazonlinux:2023
+FROM --platform=linux/arm64 amazonlinux:2023
 
 WORKDIR /app
 
@@ -34,10 +35,12 @@ ENV AWS_LAMBDA_FUNCTION_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:server
 # Required by the trace-agent's read_cloud_env() to identify the environment.
 # In a real MicroVM the Lambda runtime sets this automatically alongside the ARN.
 ENV AWS_LAMBDA_FUNCTION_NAME=serverless-init-poc-id
-ENV DD_API_KEY=<YOUR_API_KEY>
+# DD_API_KEY is passed at `docker run` time via `-e DD_API_KEY=...`
+# (don't bake secrets into the image layer).
 ENV DD_SITE=datadoghq.com
 ENV DD_SERVICE=serverless-init-poc-id
 ENV DD_LOGS_ENABLED=true
+ENV DD_LOG_LEVEL=debug
 
 ENTRYPOINT ["/serverless-init"]
 CMD ["python3.11", "app.py"]

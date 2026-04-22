@@ -35,7 +35,7 @@ ENV AWS_LAMBDA_FUNCTION_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:my-vm-
 # Required by the trace-agent's read_cloud_env() to identify the environment.
 # In a real MicroVM the Lambda runtime sets this automatically alongside the ARN.
 ENV AWS_LAMBDA_FUNCTION_NAME=my-vm-id
-ENV DD_API_KEY=<DD_API_KEY>
+ENV DD_API_KEY=$DD_API_KEY
 ENV DD_SITE=datadoghq.com
 
 ENTRYPOINT ["/datadog-serverless-compat"]
