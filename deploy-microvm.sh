@@ -30,6 +30,10 @@ set +x
 #   POLL_INTERVAL    default: 10 (seconds)
 #   POLL_TIMEOUT     default: 1800 (seconds, 30 min)
 #   APP_PORT         default: 8080  (exported at the end; X-aws-proxy-port value)
+#   SHELL_ENABLED    default: true  (operationalConfig.shellEnabled on launch)
+#   EXECUTION_ROLE_ARN   default: the microvm-build-role (confirmed working in
+#                                  prod despite the schema saying the role must
+#                                  trust lambda.amazonaws.com)
 #
 # Requires `awsv` to resolve to AWS CLI v2 (as used throughout CLAUDE.md) and
 # `jq` for parsing the multi-part authToken response. We source ~/.zshrc below
@@ -90,6 +94,17 @@ POLL_TIMEOUT="${POLL_TIMEOUT:-1800}"
 # the user-app port (`EXPOSE 8080` in the sample Dockerfiles). Set to 9000
 # to hit the lifecycle-hook / serverless-init server instead.
 APP_PORT="${APP_PORT:-8080}"
+# Enables `ctr task exec` shell access on the MicroVM host for debugging
+# (see CLAUDE.md "Operating MicroVMs"). This is a launch-time setting —
+# the image snapshot is unaffected, so flipping it only takes effect on
+# the *next* launch. Default on for this preview dev kit; set to false
+# to deploy without shell.
+SHELL_ENABLED="${SHELL_ENABLED:-true}"
+# Role assumed by the MicroVM at runtime (LaunchMicroVMRequest.executionRoleArn).
+# The 2026-03-07 schema says this role "must trust lambda.amazonaws.com", but
+# reusing microvm-build-role has been verified working in prod, so we default
+# to the same ARN as BUILD_ROLE_ARN. Override per-launch via env.
+EXECUTION_ROLE_ARN="${EXECUTION_ROLE_ARN:-$BUILD_ROLE_ARN}"
 
 # Local zip sits next to the app dir; keep $APP_NAME in the filename so
 # deploys of different apps don't collide in a shared parent directory.
@@ -109,6 +124,8 @@ log "Image name: $IMAGE_NAME   (${#IMAGE_NAME} chars)"
 log "App dir:    $APP_DIR"
 log "Zip path:   $ZIP_PATH"
 log "S3 target:  $S3_URI"
+log "Shell:      shellEnabled=$SHELL_ENABLED"
+log "Exec role:  $EXECUTION_ROLE_ARN"
 
 # --- 1. Zip ----------------------------------------------------------------
 log "[1/5] Creating zip"
@@ -173,9 +190,11 @@ log "[5/6] Launching MicroVM"
 MICROVM_ID=$(awsv aws lambda-microvms launch-micro-vm \
   --micro-vm-image-arn "$IMAGE_ARN" \
   --micro-vm-image-version 1.0 \
+  --execution-role-arn "$EXECUTION_ROLE_ARN" \
   --ingress-network-connectors "$INGRESS_CONNECTOR" \
   --egress-network-connectors "$EGRESS_CONNECTOR" \
   --idle-policy autoResumeEnabled=true,maxIdleDurationSeconds=900,suspendedDurationSeconds=300 \
+  --operational-config "shellEnabled=$SHELL_ENABLED" \
   "${AWS_ARGS[@]}" \
   --query 'microVMId' --output text)
 log "      microVMId: $MICROVM_ID"
