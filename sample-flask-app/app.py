@@ -15,12 +15,18 @@ Endpoints:
 
 import logging
 import sys
+from datetime import datetime, timezone
 from io import StringIO
 from flask import Flask, request, jsonify
 import traceback
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+def _now_ts():
+    return datetime.now(timezone.utc).isoformat()
+
 
 BASE_PATH = "/aws/lambda-microvms/runtime/beta/v1"
 PORT = 9000
@@ -33,14 +39,14 @@ micro_vm_id = None
 @app.route("/health", methods=["GET"])
 def health():
     """Health check endpoint."""
-    logger.info(f"Health check called [microVmId={micro_vm_id}]")
+    logger.info(f"Health check called [ts={_now_ts()}, microVmId={micro_vm_id}]")
     return jsonify({"status": "healthy"})
 
 
 @app.route(f"{BASE_PATH}/ready", methods=["POST"])
 def ready():
     """Handle ready hook from Lambda MicroVMs."""
-    logger.info(f"Ready hook called [microVmId={micro_vm_id}]")
+    logger.info(f"Ready hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
     return "", 200
 
 
@@ -53,7 +59,7 @@ def launch():
     micro_vm_id = data.get("microVmId")
     mesh_ipv6_address = data.get("meshIpv6Address")
 
-    logger.info(f"Launch hook called — microVmId={micro_vm_id}, meshIpv6Address={mesh_ipv6_address}")
+    logger.info(f"Launch hook called — ts={_now_ts()}, microVmId={micro_vm_id}, meshIpv6Address={mesh_ipv6_address}")
 
     return "", 200
 
@@ -61,21 +67,21 @@ def launch():
 @app.route(f"{BASE_PATH}/resume", methods=["POST"])
 def resume():
     """Handle resume hook from Lambda MicroVMs (PAUSED resume type)."""
-    logger.info(f"Resume hook called [microVmId={micro_vm_id}]")
+    logger.info(f"Resume hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
     return "", 200
 
 
 @app.route(f"{BASE_PATH}/suspend", methods=["POST"])
 def suspend():
     """Handle suspend hook from Lambda MicroVMs."""
-    logger.info(f"Suspend hook called [microVmId={micro_vm_id}]")
+    logger.info(f"Suspend hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
     return "", 200
 
 
 @app.route(f"{BASE_PATH}/terminate", methods=["POST"])
 def terminate():
     """Handle terminate hook from Lambda MicroVMs."""
-    logger.info(f"Terminate hook called [microVmId={micro_vm_id}]")
+    logger.info(f"Terminate hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
     return "", 200
 
 
@@ -97,7 +103,7 @@ def execute_code():
         result = None
         error = None
 
-        logger.info(f"Execute called [microVmId={micro_vm_id}]")
+        logger.info(f"Execute called [ts={_now_ts()}, microVmId={micro_vm_id}]")
 
         try:
             # Execute the code
