@@ -130,6 +130,23 @@ log "Exec role:  $EXECUTION_ROLE_ARN"
 # --- 1. Zip ----------------------------------------------------------------
 log "[1/5] Creating zip"
 rm -f "$ZIP_PATH"
+
+# If DD_API_KEY is set in the shell, ship it into the zip as .dd-env
+# (entrypoint.sh sources this on container start). The MicroVM build
+# pipeline has no access to your host env, so this is how the key
+# actually reaches the guest. The file is cleaned up via EXIT trap so
+# it doesn't leak as plaintext into the repo after the script finishes.
+DD_ENV_FILE="$APP_DIR/.dd-env"
+if [[ -n "${DD_API_KEY:-}" ]]; then
+  ( umask 077
+    printf 'export DD_API_KEY=%q\n' "$DD_API_KEY" > "$DD_ENV_FILE"
+  )
+  trap "rm -f '$DD_ENV_FILE'" EXIT
+  log "      shipping .dd-env with DD_API_KEY (${#DD_API_KEY} chars)"
+else
+  log "      WARN: DD_API_KEY not set in shell — agent will fail auth"
+fi
+
 ( cd "$APP_DIR" && zip -qr "$ZIP_PATH" . -x '*.DS_Store' 'claude-notifications.jsonl' )
 log "      zip size: $(du -h "$ZIP_PATH" | awk '{print $1}')"
 
