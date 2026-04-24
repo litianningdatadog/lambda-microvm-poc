@@ -13,7 +13,7 @@ WORKDIR /opt/platform
 RUN dnf install -y \
       python3.11 python3.11-pip \
       gettext \
-      procps-ng iproute iputils \
+      procps-ng iproute iputils htop \
       shadow-utils tar \
     && dnf clean all
 
