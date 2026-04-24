@@ -38,6 +38,12 @@ set +x
 # Requires `awsv` to resolve to AWS CLI v2 (as used throughout CLAUDE.md) and
 # `jq` for parsing the multi-part authToken response. We source ~/.zshrc below
 # to pick up awsv — which is why this script is `#!/usr/bin/env zsh`, not bash.
+#
+# The lambda-microvms service model ships in this repo as
+# `lambdamicrovms-2025-09-09.json`. This script registers it with the
+# AWS CLI on every invocation (idempotent), so a fresh clone works
+# without first running the `aws configure add-model` step from
+# CLAUDE.md's "CLI Setup" section.
 # =============================================================================
 
 APP_DIR="${1:?Usage: $0 <app-dir>}"
@@ -66,6 +72,29 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 set -euo pipefail
+
+# Resolve this script's own directory (independent of the caller's cwd)
+# so we can find the lambda-microvms service model next to it in the repo.
+SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
+MODEL_FILE="$SCRIPT_DIR/lambdamicrovms-2025-09-09.json"
+
+if [[ ! -f "$MODEL_FILE" ]]; then
+  print -u2 "ERROR: Service model not found at $MODEL_FILE"
+  print -u2 "       This script expects lambdamicrovms-2025-09-09.json to live"
+  print -u2 "       next to it in the repo root."
+  exit 1
+fi
+
+# Register the lambda-microvms service model on every invocation.
+# `aws configure add-model` is idempotent — it overwrites
+# ~/.aws/models/lambda-microvms/<api-version>/service-2.json with the
+# repo's copy. Doing this here means the script works on a fresh clone
+# without requiring the operator to follow CLAUDE.md's "CLI Setup"
+# step first.
+awsv aws configure add-model \
+  --service-model "file://$MODEL_FILE" \
+  --service-name lambda-microvms >/dev/null
+
 APP_NAME="$(basename "$APP_DIR")"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
