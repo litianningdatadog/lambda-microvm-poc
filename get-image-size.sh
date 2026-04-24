@@ -118,11 +118,12 @@ SNAPSHOT_BYTES=$(print -r -- "$DESCRIBE_JSON" \
 
 if [[ "$SNAPSHOT_BYTES" == "null" ]]; then
   # BuildState enum is: PENDING → IN_PROGRESS → STAGED → SUCCESSFUL (or FAILED).
-  # snapshotSizeBytes is declared optional in the schema, so the service may
-  # simply not populate it even for SUCCESSFUL builds in this preview.
+  # snapshotSizeBytes is declared optional in the schema, and the preview
+  # service is observed to NOT populate it for SUCCESSFUL builds. See
+  # PREVIEW-CAVEATS.md at the repo root for the tracked gap + workarounds.
   print -u2 "WARNING: snapshotSizeBytes is NOT populated for build $BUILD_ID"
-  print -u2 "         (buildState=$BUILD_STATE — the field is optional in the"
-  print -u2 "          schema; the MicroVM preview service may not emit it yet)"
+  print -u2 "         (buildState=$BUILD_STATE — known preview gap; see"
+  print -u2 "          PREVIEW-CAVEATS.md for workarounds like docker inspect)"
   print -u2 ""
   print -u2 "Full DescribeMicroVMImageBuild response (so you can see what IS"
   print -u2 "returned):"

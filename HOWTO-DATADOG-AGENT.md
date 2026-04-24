@@ -228,8 +228,14 @@ repo at `cmd/serverless-init/`).
 
   Returns bytes — divide by `1024*1024` for MB. This is the size that
   gets cloned on every `launch-micro-vm`, so it's directly proportional
-  to clone-in latency. Either `describe-micro-vm-image-build` or
-  `get-micro-vm-image-build` works — they're schema-identical.
+  to clone-in latency. **Known preview gap:** the service currently
+  doesn't populate `snapshotSizeBytes` for `SUCCESSFUL` builds — see
+  [`PREVIEW-CAVEATS.md`](./PREVIEW-CAVEATS.md) for the tracked issue
+  and workarounds (local `docker image inspect` is the closest proxy).
+  In principle either `describe-micro-vm-image-build` or
+  `get-micro-vm-image-build` would work (schema-identical), but the
+  service returns `UnknownOperationException` for `get-*` — only the
+  `describe-*` form is actually implemented.
   **There is no equivalent API for per-MicroVM runtime snapshot size
   after `/suspend`** — the platform doesn't expose it. If you need to
   estimate suspended-state size, read
