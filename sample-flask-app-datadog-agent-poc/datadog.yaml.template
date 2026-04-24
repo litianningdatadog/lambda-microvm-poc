@@ -1,0 +1,55 @@
+# Rendered at /launch time by hook_server.py:_render_datadog_yaml().
+# Expected env vars at render time:
+#   DD_API_KEY   — from .dd-env shipped by deploy-microvm.sh at zip time.
+#   DD_SITE      — e.g. datadoghq.com / datadoghq.eu (default: datadoghq.com).
+#   DD_HOSTNAME  — the microVmId from the /launch lifecycle-hook payload.
+#                  Used as the agent's canonical hostname so every MicroVM
+#                  shows up as its own host in Datadog's infrastructure map.
+#   DD_SERVICE   — set in Dockerfile ENV; drives service: tagging.
+#   AWS_LAMBDA_FUNCTION_ARN — MicroVM image ARN, drives microvm_image: tag.
+# Note: never reference placeholder names using dollar-or-curly syntax
+# inside comments — both envsubst and Python's string.Template expand
+# them everywhere, which leaks values into the rendered file.
+
+api_key: ${DD_API_KEY}
+site: ${DD_SITE}
+hostname: ${DD_HOSTNAME}
+# Force the configured hostname even if it looks cloud-ish (ip-*, domu-*).
+# Without this, agent v7.16+ falls back to cloud metadata, which isn't
+# available from inside a MicroVM anyway.
+hostname_force_config_as_canonical: true
+
+# Tags applied to every metric, log, and event emitted by this clone.
+tags:
+  - env:microvm-preview
+  - service:${DD_SERVICE}
+  - microvm_id:${DD_HOSTNAME}
+  - microvm_image:${AWS_LAMBDA_FUNCTION_ARN}
+
+# --- Logs -------------------------------------------------------------
+# conf.d/python.d/conf.yaml tails /var/log/flask/app.log and ships lines
+# as DD logs tagged source:python service:sample-flask-app.
+logs_enabled: true
+
+# --- APM --------------------------------------------------------------
+# ddtrace-run in supervisord.conf sends spans to 127.0.0.1:8126.
+apm_config:
+  enabled: true
+  apm_non_local_traffic: false
+
+# --- DogStatsD --------------------------------------------------------
+# Agent listens on 127.0.0.1:8125 for app.py's lifecycle events.
+use_dogstatsd: true
+
+# --- Disable host-level checks that don't make sense in a MicroVM ----
+# process-agent enumerates /proc; MicroVM process tree is trivial.
+# system-probe does eBPF networking; not useful here and adds ~100MB RAM.
+process_config:
+  enabled: "false"
+
+system_probe_config:
+  enabled: false
+
+# Don't probe EC2 metadata — not reachable from the MicroVM.
+cloud_provider_metadata:
+  - ""

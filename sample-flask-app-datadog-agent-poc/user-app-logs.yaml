@@ -1,0 +1,28 @@
+# Datadog Agent log integration: tail the user app's stdout file.
+#
+# supervisord redirects the user-app child process's stdout+stderr to
+# /var/log/app/app.log (see supervisord.conf). The agent tails that file
+# and ships lines as DD logs — giving you "stdout captured like serverless
+# -init does", without requiring any change to the user's application.
+#
+# start_position: end  — when the agent starts at /launch, begin tailing
+#   from EOF. Logs written between container boot and /launch are lost;
+#   this is the intended trade-off to avoid re-shipping the whole file on
+#   every suspend/resume cycle. Flip to 'beginning' for debugging only.
+
+init_config:
+
+instances:
+
+logs:
+  - type: file
+    path: /var/log/app/app.log
+    # `service:` intentionally omitted — the global `service:${DD_SERVICE}`
+    # tag from datadog.yaml.template applies to these logs, matching the
+    # same service name used for APM traces and host-infra metrics.
+    source: python
+    start_position: end
+    log_processing_rules:
+      - type: multi_line
+        name: python_log_start_with_timestamp
+        pattern: \d{4}-\d{2}-\d{2}
