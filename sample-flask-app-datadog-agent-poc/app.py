@@ -25,11 +25,9 @@ from datetime import datetime, timezone
 
 from flask import Flask, jsonify
 
-DD_HOSTNAME = os.environ.get("DD_HOSTNAME", "user-app")
-
 logging.basicConfig(
     level=logging.INFO,
-    format=f"%(asctime)s - {DD_HOSTNAME} - %(levelname)s - %(message)s",
+    format=f"%(asctime)s - %(levelname)s - %(message)s",
     stream=sys.stdout,
 )
 logger = logging.getLogger(__name__)
