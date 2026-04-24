@@ -14,6 +14,7 @@ Endpoints:
 """
 
 import logging
+import os
 import sys
 from datetime import datetime, timezone
 from io import StringIO
@@ -133,8 +134,19 @@ def execute_code():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def _log_env_vars():
+    """Dump every env var, one per line, sorted — so hook logs can be
+    grepped by variable name in CloudWatch. No redaction: assume the log
+    sink is trusted (inside the MicroVM boundary)."""
+    env = os.environ
+    logger.info(f"Environment dump ({len(env)} vars) [ts={_now_ts()}]")
+    for key in sorted(env):
+        logger.info(f"  env {key}={env[key]}")
+
+
 if __name__ == "__main__":
     logger.info(f"Starting sample guest application on port {PORT}")
+    _log_env_vars()
     print(f"""
 Sample commands (server running on port {PORT}):
 
