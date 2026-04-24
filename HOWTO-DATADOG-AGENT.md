@@ -188,7 +188,54 @@ repo at `cmd/serverless-init/`).
   is required so the agent can reach `*.datadoghq.com`.
 - **Image size** — ~400 MB for the agent RPM + Python + supervisord + pip
   deps. Well within the 32 GB zip artifact limit, but longer snapshot
-  clone times than a minimal image.
+  clone times than a minimal image. The control-plane API exposes the
+  exact snapshot size via `snapshotSizeBytes` on
+  `describe-micro-vm-image-build` / `get-micro-vm-image-build` — but
+  those operations require *three* inputs (ARN + version + buildId) and
+  `create-micro-vm-image` only returns the ARN. Use the wrapper script
+  at the repo root:
+
+  ```bash
+  ./get-image-size.sh <image-arn>
+  ```
+
+  It does the two-step API dance (list builds → pick newest → describe
+  build) and prints a human-readable size. Equivalent one-off inline:
+
+  ```bash
+  IMAGE_ARN="<your-image-arn>"
+  AWS_ARGS=(--region us-east-2
+            --endpoint https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev)
+
+  # 1. List builds, pull version + buildId of the newest.
+  read VERSION BUILD_ID < <(
+    awsv aws lambda-microvms list-micro-vm-image-builds \
+      --micro-vm-image-arn "$IMAGE_ARN" "${AWS_ARGS[@]}" --output json \
+      | jq -r '.builds | sort_by(.creationTime) | reverse | .[0]
+               | "\(.microVMImageVersion) \(.buildId)"'
+  )
+
+  # 2. Drill into that build for snapshotSizeBytes (note: top-level,
+  # NOT under `.summary.` — `summary` is for describe-micro-vm-image
+  # without the `-build` suffix, which is a different operation).
+  awsv aws lambda-microvms describe-micro-vm-image-build \
+    --micro-vm-image-arn "$IMAGE_ARN" \
+    --micro-vm-image-version "$VERSION" \
+    --build-id "$BUILD_ID" \
+    "${AWS_ARGS[@]}" \
+    --query 'snapshotSizeBytes' --output text
+  ```
+
+  Returns bytes — divide by `1024*1024` for MB. This is the size that
+  gets cloned on every `launch-micro-vm`, so it's directly proportional
+  to clone-in latency. Either `describe-micro-vm-image-build` or
+  `get-micro-vm-image-build` works — they're schema-identical.
+  **There is no equivalent API for per-MicroVM runtime snapshot size
+  after `/suspend`** — the platform doesn't expose it. If you need to
+  estimate suspended-state size, read
+  `system.mem.used{host:<microVmId>}` in Datadog just before `/suspend`
+  fires (Firecracker's suspend serializes guest RAM, so that value
+  approximates the suspended snapshot's size).
 - **Secret posture** — `.dd-env` baked into the image = key lives in the
   Firecracker snapshot shared across all clones launched from that
   image. Acceptable for private preview; not for shared production.

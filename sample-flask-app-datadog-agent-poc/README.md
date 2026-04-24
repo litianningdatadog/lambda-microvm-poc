@@ -228,6 +228,15 @@ Datadog is there.
 - **Single-binary platform image.** For real use this should be split
   into a prebuilt `microvm-dd-base:latest` base image so the user's own
   Dockerfile is truly 3 lines.
+- **Measuring image snapshot size.** After a build reaches `CREATED`,
+  call `list-micro-vm-image-builds --micro-vm-image-arn <ARN>` to get
+  `microVMImageVersion` + `buildId` (neither is returned by
+  `create-micro-vm-image`), then `describe-micro-vm-image-build` with
+  ARN + version + buildId returns `summary.snapshotSizeBytes` (bytes).
+  Full command flow in [`HOWTO-DATADOG-AGENT.md`](../HOWTO-DATADOG-AGENT.md#operational-restrictions-inherited-from-the-microvm-preview).
+  Per-MicroVM runtime snapshot size (after `/suspend`) is **not**
+  exposed by the API; use `system.mem.used{host:<microVmId>}` in
+  Datadog as a proxy.
 - **DogStatsD lifecycle-event durability.** `hook_server.py` emits
   lifecycle events via DogStatsD (UDP to `localhost:8125`), which is
   fire-and-forget — packets are silently dropped when the agent isn't
