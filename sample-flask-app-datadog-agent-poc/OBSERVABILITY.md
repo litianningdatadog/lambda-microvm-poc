@@ -145,13 +145,11 @@ flowchart TB
         pid1 -.->|supervisorctl start at /launch| AgentBox
 
         paths["`**Volumes / paths**
-        /opt/platform/                  — hook-server + config
-        /opt/platform/.dd-env           — DD_API_KEY
-        /etc/datadog-agent/             — agent config dir
-        /etc/datadog-agent/datadog.yaml — rendered at /launch
+        /opt/platform/: hook-server + config
+        /etc/datadog-agent/: agent config dir
+        /etc/datadog-agent/datadog.yaml: rendered at /launch
         /etc/datadog-agent/conf.d/user-app.d/conf.yaml
-        /var/log/app/app.log            — user-app stdout/stderr
-        /var/run/datadog/agent_ipc.socket`"]
+        /var/log/app/app.log: user-app stdout/stderr`"]
     end
 
     platform["`**MicroVM platform**
@@ -263,6 +261,62 @@ flowchart LR
 How the agent transitions through the five MicroVM lifecycle hooks.
 This is the most unusual piece of the design — the agent is NOT
 always running.
+
+```
+     [container boot]
+            │
+            ▼
+     ┌──────────────┐
+     │     BOOT     │   supervisord starts user-app + hook-server.
+     │              │   datadog-agent autostart=FALSE (keystone —
+     └──────┬───────┘   agent must NOT be running at snapshot time)
+            │
+            │ user-app reaches RUNNING
+            ▼
+     ┌──────────────┐
+     │    READY     │   /ready polled by platform during image build.
+     │              │   hook-server returns 200 when user-app is RUNNING
+     └──────┬───────┘   → Firecracker snapshot taken here
+            │
+            │ /launch fires on a clone
+            ▼
+     ┌──────────────┐
+     │    CLONED    │   hook-server renders datadog.yaml with
+     │              │   hostname=microVmId, then
+     └──────┬───────┘   supervisorctl start datadog-agent
+            │
+            │ agent up, tags set
+            ▼
+     ┌──────────────┐                         ┌─────────────────┐
+     │              │ ── /suspend ──────────▶ │   SUSPENDING    │
+     │   RUNNING    │                         │ datadog-agent   │
+     │              │                         │ stop (flush) →  │
+     │ agent emits  │                         │ supervisorctl   │
+     │ metrics,     │                         │ start (pre-warm)│
+     │ logs, spans, │                         └────────┬────────┘
+     │ DogStatsD    │                                  │
+     │              │                                  │ platform
+     │              │                                  │ freezes VM
+     │              │                                  ▼
+     │              │                         ┌─────────────────┐
+     │              │ ◀── /resume (no-op) ─── │     FROZEN      │
+     │              │                         │  fresh agent    │
+     │              │                         │  already up in  │
+     │              │                         │  the frozen VM  │
+     └──────┬───────┘                         └─────────────────┘
+            │
+            │ /terminate fires
+            ▼
+     ┌──────────────┐
+     │ TERMINATING  │   datadog-agent stop (final flush before
+     │              │   VM teardown — all buffered spans, logs,
+     └──────┬───────┘   and metrics drain to DD intake)
+            │
+            ▼
+          [end]
+```
+
+Same state machine in Mermaid:
 
 ```mermaid
 stateDiagram-v2
