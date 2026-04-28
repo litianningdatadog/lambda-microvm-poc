@@ -41,6 +41,9 @@ ENV DD_SITE=datadoghq.com
 ENV DD_SERVICE=serverless-init-poc-id
 ENV DD_LOGS_ENABLED=true
 ENV DD_LOG_LEVEL=debug
+ENV DD_TRACE_SAMPLE_RATE=1.0
+ENV DD_LOGS_INJECTION=true
+
 
 ENTRYPOINT ["/serverless-init"]
 CMD ["python3.11", "app.py"]

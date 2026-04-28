@@ -33,14 +33,16 @@ micro_vm_id = None
 @app.route("/health", methods=["GET"])
 def health():
     """Health check endpoint."""
-    logger.info(f"Health check called [microVmId={micro_vm_id}]")
+    print(f"""Serverless-compat Health check called""")
+
+    logger.info(f"Serverless-compat Health check called [microVmId={micro_vm_id}]")
     return jsonify({"status": "healthy"})
 
 
 @app.route(f"{BASE_PATH}/ready", methods=["POST"])
 def ready():
     """Handle ready hook from Lambda MicroVMs."""
-    logger.info(f"Ready hook called [microVmId={micro_vm_id}]")
+    logger.info(f"Serverless-compat Ready hook called [microVmId={micro_vm_id}]")
     return "", 200
 
 
@@ -53,7 +55,7 @@ def launch():
     micro_vm_id = data.get("microVmId")
     mesh_ipv6_address = data.get("meshIpv6Address")
 
-    logger.info(f"Launch hook called — microVmId={micro_vm_id}, meshIpv6Address={mesh_ipv6_address}")
+    logger.info(f"Serverless-compat Launch hook called — microVmId={micro_vm_id}, meshIpv6Address={mesh_ipv6_address}")
 
     return "", 200
 
@@ -68,14 +70,14 @@ def resume():
 @app.route(f"{BASE_PATH}/suspend", methods=["POST"])
 def suspend():
     """Handle suspend hook from Lambda MicroVMs."""
-    logger.info(f"Suspend hook called [microVmId={micro_vm_id}]")
+    logger.info(f"Serverless-compat  Suspend hook called [microVmId={micro_vm_id}]")
     return "", 200
 
 
 @app.route(f"{BASE_PATH}/terminate", methods=["POST"])
 def terminate():
     """Handle terminate hook from Lambda MicroVMs."""
-    logger.info(f"Terminate hook called [microVmId={micro_vm_id}]")
+    logger.info(f"Serverless-compat Terminate hook called [microVmId={micro_vm_id}]")
     return "", 200
 
 

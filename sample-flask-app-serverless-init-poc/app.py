@@ -33,7 +33,7 @@ micro_vm_id = None
 @app.route("/health", methods=["GET"])
 def health():
     """Health check endpoint."""
-    logger.info(f"Health check called [microVmId={micro_vm_id}]")
+    logger.info(f"Serverless-init Health check called [microVmId={micro_vm_id}]")
     return jsonify({"status": "healthy"})
 
 

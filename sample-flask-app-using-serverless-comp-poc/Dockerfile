@@ -21,7 +21,7 @@ RUN pip3.11 install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 
-EXPOSE 8080
+EXPOSE 8080 9000
 # Port 9000 is reserved for the serverless-compat lifecycle hook server.
 
 # serverless-compat runs as PID 1 (init mode).
@@ -31,12 +31,16 @@ EXPOSE 8080
 # pipeline, forwards Unix signals to the child, and propagates its exit code.
 # Fake MicroVM ARN so serverless-compat activates init mode locally.
 # Remove this ENV line when deploying to a real Lambda MicroVM environment.
-ENV AWS_LAMBDA_FUNCTION_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:my-vm-id
+ENV AWS_LAMBDA_FUNCTION_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:serverless-compat-poc-id
+ENV AWS_LAMBDA_FUNCTION_NAME=serverless-compat-poc-id
 # Required by the trace-agent's read_cloud_env() to identify the environment.
 # In a real MicroVM the Lambda runtime sets this automatically alongside the ARN.
-ENV AWS_LAMBDA_FUNCTION_NAME=my-vm-id
-ENV DD_API_KEY=$DD_API_KEY
 ENV DD_SITE=datadoghq.com
+ENV DD_SERVICE=serverless-compat-poc-id
+ENV DD_LOGS_ENABLED=true
+ENV DD_LOG_LEVEL=debug
+ENV DD_TRACE_SAMPLE_RATE=1.0
+ENV DD_LOGS_INJECTION=true
 
 ENTRYPOINT ["/datadog-serverless-compat"]
 CMD ["python3.11", "app.py"]

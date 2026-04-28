@@ -40,7 +40,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def hello():
-    logger.info(f"Request received at {datetime.now(timezone.utc).isoformat()}")
+    logger.info(f"Datadog-agent Request received at {datetime.now(timezone.utc).isoformat()}")
     return jsonify({"message": "Hello from the user app",
                     "hostname": os.uname().nodename})
 
