@@ -1,0 +1,12 @@
+{
+  "name": "sample-nodejs-app",
+  "version": "1.0.0",
+  "description": "Sample guest application implementing Lambda MicroVMs lifecycle hooks (Node.js).",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
