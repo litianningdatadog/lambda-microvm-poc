@@ -30,7 +30,7 @@ def _now_ts():
 
 
 BASE_PATH = "/aws/lambda-microvms/runtime/beta/v1"
-PORT = 9000
+PORT = 8080
 
 app = Flask(__name__)
 

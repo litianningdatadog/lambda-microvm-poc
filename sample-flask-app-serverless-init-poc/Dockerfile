@@ -7,7 +7,7 @@ WORKDIR /app
 RUN dnf install -y \
     python3.11 python3.11-pip \
     lsof net-tools procps-ng htop iproute iputils \
-    vim-enhanced nano wget unzip file \
+    vim-enhanced nano wget unzip file htop \
     && dnf clean all
 
 # Datadog serverless-init binary (linux/arm64).
