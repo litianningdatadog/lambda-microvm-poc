@@ -20,6 +20,7 @@ RUN_FLAGS := -p 8080:8080 -p 9000:9000 \
 .PHONY: build run runfg runbg runwithlog readlog stop _rm
 
 build:
+	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	docker build -t $(IMAGE) .
 
 # Default `run` stays as foreground for backward compat with the sibling POC.
