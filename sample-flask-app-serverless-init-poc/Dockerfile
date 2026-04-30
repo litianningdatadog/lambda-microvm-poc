@@ -20,6 +20,11 @@ COPY requirements.txt .
 RUN pip3.11 install --no-cache-dir -r requirements.txt
 
 COPY app.py .
+# .dd-env is written by deploy-microvm.sh and ships inside the zip.
+# entrypoint.sh sources it when DD_API_KEY isn't already in the environment.
+COPY .dd-env /app/.dd-env
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 9000 8080
 # 9000 = serverless-init lifecycle hook server; 8080 = user-app port.
@@ -35,8 +40,7 @@ ENV AWS_LAMBDA_FUNCTION_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:server
 # Required by the trace-agent's read_cloud_env() to identify the environment.
 # In a real MicroVM the Lambda runtime sets this automatically alongside the ARN.
 ENV AWS_LAMBDA_FUNCTION_NAME=serverless-init-poc-id
-# DD_API_KEY is passed at `docker run` time via `-e DD_API_KEY=...`
-# (don't bake secrets into the image layer).
+# DD_API_KEY: locally via `docker run -e`; on AWS via .dd-env baked into the image.
 ENV DD_SITE=datadoghq.com
 ENV DD_SERVICE=serverless-init-poc-id
 ENV DD_LOGS_ENABLED=true
@@ -45,5 +49,5 @@ ENV DD_TRACE_SAMPLE_RATE=1.0
 ENV DD_LOGS_INJECTION=true
 
 
-ENTRYPOINT ["/serverless-init"]
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python3.11", "app.py"]

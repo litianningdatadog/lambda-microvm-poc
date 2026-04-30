@@ -217,7 +217,7 @@ while :; do
         --micro-vm-image-arn "$IMAGE_ARN" "${AWS_ARGS[@]}" \
         --query 'summary.failureReason' --output text 2>/dev/null || true)
       log "ERROR: image build failed: ${reason:-<no reason returned>}"
-      log "      build logs: CloudWatch /aws/lambda/microvms/$IMAGE_NAME"
+      log "      build logs: CloudWatch /aws/lambda-microvms/$IMAGE_NAME"
       exit 1
       ;;
     CREATING) ;;  # still building — keep polling
