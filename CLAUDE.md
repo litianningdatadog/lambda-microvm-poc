@@ -2,6 +2,34 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Coding Philosophy
+
+These guidelines bias toward caution over speed. The test: "Would a senior engineer say this is overcomplicated?"
+
+### Think Before Coding
+
+-   Surface assumptions before writing code. When requirements are ambiguous, present multiple interpretations rather than silently picking one.
+-   If something seems off or unnecessarily complex, stop and name what's confusing. Ask clarifying questions before proceeding.
+-   Suggest simpler approaches when you see them — even if it means less work for you.
+
+### Simplicity First
+
+-   Write the minimum code that solves the problem. No speculative features, no abstractions for single-use code, no unrequested flexibility.
+-   Don't add error handling for scenarios that can't happen. Trust internal code and framework guarantees. Only validate at system boundaries.
+-   Three similar lines is better than a premature abstraction. No half-finished implementations.
+
+### Surgical Changes
+
+-   Touch only what's necessary. Don't improve adjacent code, refactor unbroken things, or change style to personal preference.
+-   When your changes create orphans, clean up only what YOUR changes made unused. Don't remove pre-existing dead code unless asked.
+-   Every changed line should trace directly to the user's request.
+
+### Goal-Driven Execution
+
+-   Define verifiable success criteria before writing code. "Add validation" becomes "write tests for invalid inputs, then make them pass."
+-   For multi-step tasks, state a brief plan with steps and verification checks before implementing.
+-   Verify work is complete before claiming it's done. Run the dev server, test edge cases, check for regressions.
+- 
 ## Overview
 
 This is an **AWS Lambda MicroVM Private Preview** developer kit. Lambda MicroVMs are serverless ephemeral compute environments (max 8 hours) powered by Firecracker virtualization, combining VM-level isolation with container resource efficiency. This kit contains the preview SDK artifacts and two example applications.
