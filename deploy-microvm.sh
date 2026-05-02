@@ -155,6 +155,7 @@ log "Zip path:   $ZIP_PATH"
 log "S3 target:  $S3_URI"
 log "Shell:      shellEnabled=$SHELL_ENABLED"
 log "Exec role:  $EXECUTION_ROLE_ARN"
+log "Hooks:      all ENABLED; platform-default timeouts"
 
 # --- 1. Zip ----------------------------------------------------------------
 log "[1/5] Creating zip"
@@ -191,11 +192,29 @@ awsv aws s3 cp "$ZIP_PATH" "$S3_URI" --region "$REGION"
 
 # --- 3. Create MicroVM Image ----------------------------------------------
 log "[3/5] Creating MicroVM image '$IMAGE_NAME'"
+
+# Build snapshotConfig JSON with applicationIntegrationConfiguration.
+# Hooks are ENABLED without explicit timeouts — the API rejects *TimeoutMilliseconds
+# fields in image-creation requests (server-side constraint not reflected in schema).
+# Platform-default timeouts apply (60m ready/launch, 120s suspend/resume, 60s terminate).
+SNAPSHOT_CONFIG_JSON='{
+  "applicationIntegrationConfiguration": {
+    "lifecycleHookPort": 9000,
+    "readyHook":        "ENABLED",
+    "validateHook":     "ENABLED",
+    "launchHook":       "ENABLED",
+    "resumeHook":       "ENABLED",
+    "suspendHook":      "ENABLED",
+    "terminateHook":    "ENABLED"
+  }
+}'
+
 IMAGE_ARN=$(awsv aws lambda-microvms create-micro-vm-image \
   --code-artifact "uri=$S3_URI" \
   --name "$IMAGE_NAME" \
   --base-micro-vm-image-arn "$BASE_IMAGE_ARN" \
   --build-role-arn "$BUILD_ROLE_ARN" \
+  --snapshot-config "$SNAPSHOT_CONFIG_JSON" \
   "${AWS_ARGS[@]}" \
   --query 'microVMImageArn' --output text)
 log "      image ARN: $IMAGE_ARN"
