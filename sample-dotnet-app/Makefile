@@ -6,6 +6,8 @@ HOST      := http://localhost:$(PORT)
 .PHONY: build start stop check
 
 build:
+	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
+	@[ -f .dd-env ] || echo "# placeholder — set DD_API_KEY in your shell or .dd-env" > .dd-env
 	docker build -t $(IMAGE) .
 
 start:
