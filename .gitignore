@@ -43,3 +43,14 @@ Boto3CliV1Artifacts/awscli-bundle.zip
 /*/run.log
 /*.zip
 /sample-flask-app-datadog-agent-poc/.dd-env
+/sample-dotnet-app/.dd-env
+/sample-flask-app-using-serverless-comp-poc/.dd-env
+/sample-go-app/.dd-env
+/sample-java-app/.dd-env
+/sample-nodejs-app/.dd-env
+/sample-python-app/.dd-env
+/sample-dotnet-app/serverless-init-linux-arm64
+/sample-go-app/serverless-init-linux-arm64
+/sample-java-app/serverless-init-linux-arm64
+/sample-nodejs-app/serverless-init-linux-arm64
+/sample-python-app/serverless-init-linux-arm64
