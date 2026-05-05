@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"sort"
 	"sync"
 	"time"
 
@@ -41,7 +39,6 @@ type executeRequest struct {
 
 func main() {
 	logf("Starting sample guest application on port %d", port)
-	logEnvVars()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", health)
@@ -132,15 +129,6 @@ func getMicroVmID() string {
 	microVmIDMu.RLock()
 	defer microVmIDMu.RUnlock()
 	return microVmID
-}
-
-func logEnvVars() {
-	env := os.Environ()
-	sort.Strings(env)
-	logf("Environment dump (%d vars) [ts=%s]", len(env), nowTs())
-	for _, kv := range env {
-		logf("  env %s", kv)
-	}
 }
 
 func printSampleCommands() {

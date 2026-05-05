@@ -140,16 +140,8 @@ class Handler(BaseHTTPRequestHandler):
             _send_json(self, 500, {"error": str(e)})
 
 
-def _log_env_vars():
-    env = os.environ
-    logger.info(f"Environment dump ({len(env)} vars) [ts={_now_ts()}]")
-    for key in sorted(env):
-        logger.info(f"  env {key}={env[key]}")
-
-
 if __name__ == "__main__":
     logger.info(f"Starting sample-python-app on port {PORT}")
-    _log_env_vars()
     print(f"""
 Sample commands (server running on port {PORT}):
 

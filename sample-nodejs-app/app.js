@@ -90,18 +90,8 @@ app.post('/execute', (req, res) => {
   }
 });
 
-function logEnvVars() {
-  const env = process.env;
-  const keys = Object.keys(env).sort();
-  log(`Environment dump (${keys.length} vars) [ts=${nowTs()}]`);
-  for (const key of keys) {
-    log(`  env ${key}=${env[key]}`);
-  }
-}
-
 app.listen(PORT, '0.0.0.0', () => {
   log(`Starting sample guest application on port ${PORT}`);
-  logEnvVars();
   console.log(`
 Sample commands (server running on port ${PORT}):
 

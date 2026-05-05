@@ -4,7 +4,6 @@
 // (CSharpScript), redirecting Console.Out / Console.Error so snippet output
 // is captured and returned in the JSON response.
 
-using System.Collections;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 
@@ -17,7 +16,6 @@ string NowTs() => DateTime.UtcNow.ToString("o");
 void Log(string msg) => Console.WriteLine($"{NowTs()} - INFO - [sample-dotnet-app] {msg}");
 
 Log($"Starting sample guest application on port {Port}");
-LogEnvVars();
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls($"http://0.0.0.0:{Port}");
@@ -114,19 +112,6 @@ app.MapPost("/execute", async (HttpRequest req) =>
 
 PrintSampleCommands();
 app.Run();
-
-void LogEnvVars()
-{
-    var entries = Environment.GetEnvironmentVariables()
-        .Cast<DictionaryEntry>()
-        .OrderBy(e => e.Key?.ToString())
-        .ToList();
-    Log($"Environment dump ({entries.Count} vars) [ts={NowTs()}]");
-    foreach (var e in entries)
-    {
-        Log($"  env {e.Key}={e.Value}");
-    }
-}
 
 void PrintSampleCommands()
 {

@@ -18,7 +18,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.function.Function;
 
 /**
@@ -40,7 +39,6 @@ public final class App {
 
     public static void main(String[] args) throws IOException {
         log("Starting sample guest application on port " + PORT);
-        logEnvVars();
 
         HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", PORT), 0);
 
@@ -145,12 +143,6 @@ public final class App {
 
     private static void log(String msg) {
         System.out.println(nowTs() + " - INFO - [sample-java-app] " + msg);
-    }
-
-    private static void logEnvVars() {
-        Map<String, String> env = new TreeMap<>(System.getenv());
-        log("Environment dump (" + env.size() + " vars) [ts=" + nowTs() + "]");
-        env.forEach((k, v) -> log("  env " + k + "=" + v));
     }
 
     private static void printSampleCommands() {
