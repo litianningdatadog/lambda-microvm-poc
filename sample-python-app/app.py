@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from io import StringIO
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [sample-python-app] %(message)s')
 logger = logging.getLogger(__name__)
 
 BASE_PATH = "/aws/lambda-microvms/runtime/beta/v1"

@@ -14,7 +14,7 @@ const int Port = 8080;
 string? microVmId = null;
 
 string NowTs() => DateTime.UtcNow.ToString("o");
-void Log(string msg) => Console.WriteLine($"{NowTs()} - INFO - {msg}");
+void Log(string msg) => Console.WriteLine($"{NowTs()} - INFO - [sample-dotnet-app] {msg}");
 
 Log($"Starting sample guest application on port {Port}");
 LogEnvVars();

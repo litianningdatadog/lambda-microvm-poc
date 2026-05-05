@@ -26,7 +26,7 @@ function nowTs() {
 }
 
 function log(msg) {
-  console.log(`${nowTs()} - INFO - ${msg}`);
+  console.log(`${nowTs()} - INFO - [sample-nodejs-app] ${msg}`);
 }
 
 app.get('/health', (req, res) => {

@@ -144,7 +144,7 @@ public final class App {
     private static String nowTs() { return Instant.now().toString(); }
 
     private static void log(String msg) {
-        System.out.println(nowTs() + " - INFO - " + msg);
+        System.out.println(nowTs() + " - INFO - [sample-java-app] " + msg);
     }
 
     private static void logEnvVars() {

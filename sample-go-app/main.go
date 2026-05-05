@@ -125,7 +125,7 @@ func nowTs() string {
 }
 
 func logf(format string, args ...interface{}) {
-	log.Printf("INFO - "+format, args...)
+	log.Printf("[sample-go-app] INFO - "+format, args...)
 }
 
 func getMicroVmID() string {
