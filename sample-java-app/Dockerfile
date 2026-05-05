@@ -4,6 +4,8 @@ WORKDIR /build
 
 RUN dnf install -y java-21-amazon-corretto-devel maven && dnf clean all
 
+ENV JAVA_HOME=/usr/lib/jvm/java-21-amazon-corretto.aarch64
+
 COPY pom.xml .
 COPY src ./src
 RUN mvn -B -q package -DskipTests

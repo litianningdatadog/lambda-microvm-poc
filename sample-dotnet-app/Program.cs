@@ -81,6 +81,12 @@ app.MapPost("/execute", async (HttpRequest req) =>
     try
     {
         var options = ScriptOptions.Default
+            .WithReferences(
+                typeof(object).Assembly,
+                typeof(Console).Assembly,
+                typeof(System.Linq.Enumerable).Assembly,
+                typeof(System.Collections.Generic.List<int>).Assembly,
+                typeof(System.IO.File).Assembly)
             .WithImports("System", "System.Linq", "System.Collections.Generic", "System.IO");
         await CSharpScript.RunAsync(data.Code, options);
         return Results.Json(new
