@@ -1,4 +1,4 @@
-FROM --platform=linux/arm64 public.ecr.aws/docker/library/golang:1.22 AS build
+FROM --platform=linux/arm64 golang:1.24 AS build
 
 WORKDIR /build
 
@@ -34,6 +34,7 @@ ENV DD_LOGS_ENABLED=true
 ENV DD_LOG_LEVEL=debug
 ENV DD_TRACE_SAMPLE_RATE=1.0
 ENV DD_LOGS_INJECTION=true
+ENV DD_TRACE_ENABLED=true
 ENV DD_SERVERLESS_MICROVM_USER_APP_PORT=8080
 
 ENTRYPOINT ["/entrypoint.sh"]

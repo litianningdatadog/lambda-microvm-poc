@@ -21,6 +21,7 @@ RUN dnf install -y java-21-amazon-corretto-devel \
     && dnf clean all
 
 COPY --from=build /build/target/app.jar /app/app.jar
+RUN mkdir -p /dd_tracer/java && curl -L https://dtdg.co/latest-java-tracer -o /dd_tracer/java/dd-java-agent.jar
 
 COPY serverless-init-linux-arm64 /serverless-init
 RUN chmod +x /serverless-init
@@ -39,7 +40,8 @@ ENV DD_LOGS_ENABLED=true
 ENV DD_LOG_LEVEL=debug
 ENV DD_TRACE_SAMPLE_RATE=1.0
 ENV DD_LOGS_INJECTION=true
+ENV DD_TRACE_ENABLED=true
 ENV DD_SERVERLESS_MICROVM_USER_APP_PORT=8080
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["java", "-jar", "/app/app.jar"]
+CMD ["java", "-javaagent:/dd_tracer/java/dd-java-agent.jar", "-jar", "/app/app.jar"]

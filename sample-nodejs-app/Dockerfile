@@ -10,6 +10,7 @@ RUN dnf install -y \
 
 COPY package.json .
 RUN npm install --omit=dev
+RUN npm install dd-trace
 
 COPY app.js .
 
@@ -30,7 +31,8 @@ ENV DD_LOGS_ENABLED=true
 ENV DD_LOG_LEVEL=debug
 ENV DD_TRACE_SAMPLE_RATE=1.0
 ENV DD_LOGS_INJECTION=true
+ENV DD_TRACE_ENABLED=true
 ENV DD_SERVERLESS_MICROVM_USER_APP_PORT=8080
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["node", "app.js"]
+CMD ["node", "--require", "dd-trace/init", "app.js"]

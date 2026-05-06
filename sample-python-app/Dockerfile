@@ -11,6 +11,7 @@ RUN dnf install -y \
 
 COPY requirements.txt .
 RUN python3.11 -m pip install --no-cache-dir -r requirements.txt
+RUN python3.11 -m pip install --target /dd_tracer/python/ --no-cache-dir ddtrace
 
 COPY app.py .
 
@@ -31,7 +32,8 @@ ENV DD_LOGS_ENABLED=true
 ENV DD_LOG_LEVEL=debug
 ENV DD_TRACE_SAMPLE_RATE=1.0
 ENV DD_LOGS_INJECTION=true
+ENV DD_TRACE_ENABLED=true
 ENV DD_SERVERLESS_MICROVM_USER_APP_PORT=8080
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["python3.11", "app.py"]
+CMD ["/dd_tracer/python/bin/ddtrace-run", "python3.11", "app.py"]

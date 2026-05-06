@@ -226,7 +226,12 @@ while :; do
   state=$(awsv aws lambda-microvms describe-micro-vm-image \
     --micro-vm-image-arn "$IMAGE_ARN" \
     "${AWS_ARGS[@]}" \
-    --query 'summary.state' --output text)
+    --query 'summary.state' --output text 2>/dev/null) || {
+    elapsed=$(( $(date +%s) - start ))
+    log "      WARN: describe-micro-vm-image returned an error (transient?); retrying in ${POLL_INTERVAL}s  elapsed=${elapsed}s"
+    sleep "$POLL_INTERVAL"
+    continue
+  }
   elapsed=$(( $(date +%s) - start ))
   log "      state=$state  elapsed=${elapsed}s"
   case "$state" in
@@ -252,16 +257,29 @@ log "      image ready."
 
 # --- 5. Launch MicroVM -----------------------------------------------------
 log "[5/6] Launching MicroVM"
-MICROVM_ID=$(awsv aws lambda-microvms launch-micro-vm \
-  --micro-vm-image-arn "$IMAGE_ARN" \
-  --micro-vm-image-version 1.0 \
-  --execution-role-arn "$EXECUTION_ROLE_ARN" \
-  --ingress-network-connectors "$INGRESS_CONNECTOR" \
-  --egress-network-connectors "$EGRESS_CONNECTOR" \
-  --idle-policy autoResumeEnabled=true,maxIdleDurationSeconds=900,suspendedDurationSeconds=300 \
-  --operational-config "shellEnabled=$SHELL_ENABLED" \
-  "${AWS_ARGS[@]}" \
-  --query 'microVMId' --output text)
+MICROVM_ID=""
+launch_attempt=0
+while [[ -z "$MICROVM_ID" ]]; do
+  launch_attempt=$(( launch_attempt + 1 ))
+  if (( launch_attempt > 3 )); then
+    log "ERROR: launch-micro-vm failed after 3 attempts — giving up"
+    exit 1
+  fi
+  MICROVM_ID=$(awsv aws lambda-microvms launch-micro-vm \
+    --micro-vm-image-arn "$IMAGE_ARN" \
+    --micro-vm-image-version 1.0 \
+    --execution-role-arn "$EXECUTION_ROLE_ARN" \
+    --ingress-network-connectors "$INGRESS_CONNECTOR" \
+    --egress-network-connectors "$EGRESS_CONNECTOR" \
+    --idle-policy autoResumeEnabled=true,maxIdleDurationSeconds=900,suspendedDurationSeconds=300 \
+    --operational-config "shellEnabled=$SHELL_ENABLED" \
+    "${AWS_ARGS[@]}" \
+    --query 'microVMId' --output text 2>/dev/null) || {
+    log "      WARN: launch-micro-vm returned an error (attempt $launch_attempt/3), retrying in 10s..."
+    sleep 10
+    continue
+  }
+done
 log "      microVMId: $MICROVM_ID"
 
 # --- 6. Generate auth token and save sourceable env-var file ---------------

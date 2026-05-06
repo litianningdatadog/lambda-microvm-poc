@@ -20,6 +20,7 @@ RUN dnf install -y aspnetcore-runtime-8.0 libicu \
     && dnf clean all
 
 COPY --from=build /out /app
+COPY --from=datadog/dd-lib-dotnet-init /datadog-init/monitoring-home/ /dd_dotnet/
 
 COPY serverless-init-linux-arm64 /serverless-init
 RUN chmod +x /serverless-init
@@ -39,6 +40,11 @@ ENV DD_LOGS_ENABLED=true
 ENV DD_LOG_LEVEL=debug
 ENV DD_TRACE_SAMPLE_RATE=1.0
 ENV DD_LOGS_INJECTION=true
+ENV DD_TRACE_ENABLED=true
+ENV CORECLR_ENABLE_PROFILING=1
+ENV CORECLR_PROFILER={846F5F1C-F9AE-4B07-969E-05C26BC060D8}
+ENV CORECLR_PROFILER_PATH=/dd_dotnet/Datadog.Trace.ClrProfiler.Native.so
+ENV DD_DOTNET_TRACER_HOME=/dd_dotnet
 ENV DD_SERVERLESS_MICROVM_USER_APP_PORT=8080
 
 ENTRYPOINT ["/entrypoint.sh"]
