@@ -16,6 +16,7 @@ import (
 
 	"github.com/traefik/yaegi/interp"
 	"github.com/traefik/yaegi/stdlib"
+	ddhttp "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -39,12 +40,12 @@ type executeRequest struct {
 }
 
 func main() {
-	tracer.Start()
+	tracer.Start(tracer.WithLambdaMode(false))
 	defer tracer.Stop()
 
 	logf("Starting sample guest application on port %d", port)
 
-	mux := http.NewServeMux()
+	mux := ddhttp.NewServeMux()
 	mux.HandleFunc("/health", health)
 	mux.HandleFunc(basePath+"/ready", emptyHook("Ready"))
 	mux.HandleFunc(basePath+"/launch", launch)
