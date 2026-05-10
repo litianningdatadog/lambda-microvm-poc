@@ -16,12 +16,17 @@ Endpoints:
 
 import json
 import logging
-import os
 import sys
 import traceback
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from io import StringIO
+
+try:
+    from ddtrace import tracer as dd_tracer
+except ImportError:
+    dd_tracer = None
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [sample-python-app] %(message)s')
 logger = logging.getLogger(__name__)
@@ -58,48 +63,56 @@ def _send_empty(handler, status=200):
     handler.end_headers()
 
 
+def _span(method, path):
+    if dd_tracer:
+        return dd_tracer.trace("http.request", resource=f"{method} {path}", span_type="web")
+    return nullcontext()
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass  # suppress default access log; we use our own logger
 
     def do_GET(self):
-        if self.path == "/health":
-            logger.info(f"Health check called [ts={_now_ts()}, microVmId={micro_vm_id}]")
-            _send_json(self, 200, {"status": "healthy"})
-        else:
-            _send_empty(self, 404)
+        with _span("GET", self.path):
+            if self.path == "/health":
+                logger.info(f"Health check called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+                _send_json(self, 200, {"status": "healthy"})
+            else:
+                _send_empty(self, 404)
 
     def do_POST(self):
         global micro_vm_id
 
-        if self.path == f"{BASE_PATH}/ready":
-            logger.info(f"Ready hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
-            _send_empty(self)
+        with _span("POST", self.path):
+            if self.path == f"{BASE_PATH}/ready":
+                logger.info(f"Ready hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+                _send_empty(self)
 
-        elif self.path == f"{BASE_PATH}/launch":
-            data = _read_json_body(self)
-            micro_vm_id = data.get("microVmId")
-            mesh_ipv6_address = data.get("meshIpv6Address")
-            logger.info(f"Launch hook called — ts={_now_ts()}, microVmId={micro_vm_id}, meshIpv6Address={mesh_ipv6_address}")
-            _send_empty(self)
+            elif self.path == f"{BASE_PATH}/launch":
+                data = _read_json_body(self)
+                micro_vm_id = data.get("microVmId")
+                mesh_ipv6_address = data.get("meshIpv6Address")
+                logger.info(f"Launch hook called — ts={_now_ts()}, microVmId={micro_vm_id}, meshIpv6Address={mesh_ipv6_address}")
+                _send_empty(self)
 
-        elif self.path == f"{BASE_PATH}/resume":
-            logger.info(f"Resume hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
-            _send_empty(self)
+            elif self.path == f"{BASE_PATH}/resume":
+                logger.info(f"Resume hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+                _send_empty(self)
 
-        elif self.path == f"{BASE_PATH}/suspend":
-            logger.info(f"Suspend hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
-            _send_empty(self)
+            elif self.path == f"{BASE_PATH}/suspend":
+                logger.info(f"Suspend hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+                _send_empty(self)
 
-        elif self.path == f"{BASE_PATH}/terminate":
-            logger.info(f"Terminate hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
-            _send_empty(self)
+            elif self.path == f"{BASE_PATH}/terminate":
+                logger.info(f"Terminate hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+                _send_empty(self)
 
-        elif self.path == "/execute":
-            self._handle_execute()
+            elif self.path == "/execute":
+                self._handle_execute()
 
-        else:
-            _send_empty(self, 404)
+            else:
+                _send_empty(self, 404)
 
     def _handle_execute(self):
         try:
