@@ -3,8 +3,8 @@ package com.example;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import datadog.trace.api.Trace;
 import jdk.jshell.JShell;
 import jdk.jshell.Snippet;
 import jdk.jshell.SnippetEvent;
@@ -18,7 +18,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * Sample guest application that implements Lambda MicroVMs lifecycle hooks.
@@ -43,11 +42,11 @@ public final class App {
         HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", PORT), 0);
 
         server.createContext("/health", App::handleHealth);
-        server.createContext(BASE_PATH + "/ready", emptyHook("Ready"));
+        server.createContext(BASE_PATH + "/ready", App::handleReady);
         server.createContext(BASE_PATH + "/launch", App::handleLaunch);
-        server.createContext(BASE_PATH + "/resume", emptyHook("Resume"));
-        server.createContext(BASE_PATH + "/suspend", emptyHook("Suspend"));
-        server.createContext(BASE_PATH + "/terminate", emptyHook("Terminate"));
+        server.createContext(BASE_PATH + "/resume", App::handleResume);
+        server.createContext(BASE_PATH + "/suspend", App::handleSuspend);
+        server.createContext(BASE_PATH + "/terminate", App::handleTerminate);
         server.createContext("/execute", App::handleExecute);
 
         server.setExecutor(null);
@@ -55,19 +54,20 @@ public final class App {
         printSampleCommands();
     }
 
+    @Trace(operationName = "http.server.request", resourceName = "GET /health")
     private static void handleHealth(HttpExchange exchange) throws IOException {
         log("Health check called [ts=" + nowTs() + ", microVmId=" + microVmId + "]");
         writeJson(exchange, 200, Map.of("status", "healthy"));
     }
 
-    private static HttpHandler emptyHook(String name) {
-        return exchange -> {
-            log(name + " hook called [ts=" + nowTs() + ", microVmId=" + microVmId + "]");
-            exchange.sendResponseHeaders(200, -1);
-            exchange.close();
-        };
+    @Trace(operationName = "http.server.request", resourceName = "POST /ready")
+    private static void handleReady(HttpExchange exchange) throws IOException {
+        log("Ready hook called [ts=" + nowTs() + ", microVmId=" + microVmId + "]");
+        exchange.sendResponseHeaders(200, -1);
+        exchange.close();
     }
 
+    @Trace(operationName = "http.server.request", resourceName = "POST /launch")
     private static void handleLaunch(HttpExchange exchange) throws IOException {
         byte[] raw = exchange.getRequestBody().readAllBytes();
         JsonNode data = raw.length == 0 ? MAPPER.createObjectNode() : MAPPER.readTree(raw);
@@ -79,6 +79,28 @@ public final class App {
         exchange.close();
     }
 
+    @Trace(operationName = "http.server.request", resourceName = "POST /resume")
+    private static void handleResume(HttpExchange exchange) throws IOException {
+        log("Resume hook called [ts=" + nowTs() + ", microVmId=" + microVmId + "]");
+        exchange.sendResponseHeaders(200, -1);
+        exchange.close();
+    }
+
+    @Trace(operationName = "http.server.request", resourceName = "POST /suspend")
+    private static void handleSuspend(HttpExchange exchange) throws IOException {
+        log("Suspend hook called [ts=" + nowTs() + ", microVmId=" + microVmId + "]");
+        exchange.sendResponseHeaders(200, -1);
+        exchange.close();
+    }
+
+    @Trace(operationName = "http.server.request", resourceName = "POST /terminate")
+    private static void handleTerminate(HttpExchange exchange) throws IOException {
+        log("Terminate hook called [ts=" + nowTs() + ", microVmId=" + microVmId + "]");
+        exchange.sendResponseHeaders(200, -1);
+        exchange.close();
+    }
+
+    @Trace(operationName = "http.server.request", resourceName = "POST /execute")
     private static void handleExecute(HttpExchange exchange) throws IOException {
         try {
             byte[] raw = exchange.getRequestBody().readAllBytes();
@@ -99,8 +121,7 @@ public final class App {
                     .build()) {
 
                 StringBuilder errors = new StringBuilder();
-                Function<String, List<SnippetEvent>> snippetRunner = shell::eval;
-                List<SnippetEvent> events = snippetRunner.apply(code);
+                List<SnippetEvent> events = shell.eval(code);
                 for (SnippetEvent ev : events) {
                     if (ev.status() == Snippet.Status.REJECTED) {
                         errors.append("Rejected: ").append(ev.snippet().source()).append('\n');
