@@ -92,6 +92,11 @@ app.post('/execute', (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   log(`Starting sample guest application on port ${PORT}`);
+  const envVars = Object.entries(process.env)
+    .filter(([key]) => key !== 'DD_API_KEY')
+    .map(([key, val]) => `  ${key}=${val}`)
+    .join('\n');
+  log(`Environment variables:\n${envVars}`);
   console.log(`
 Sample commands (server running on port ${PORT}):
 

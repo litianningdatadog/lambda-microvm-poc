@@ -1,14 +1,22 @@
-IMAGE     := sample-go-app
-PORT      := 8080
-BASE_PATH := /aws/lambda-microvms/runtime/beta/v1
-HOST      := http://localhost:$(PORT)
+IMAGE            := sample-go-app
+PORT             := 8080
+BASE_PATH        := /aws/lambda-microvms/runtime/beta/v1
+HOST             := http://localhost:$(PORT)
+DD_TRACE_GO_REPO := /Users/tianning.li/DataDog/dd-trace-go
 
-.PHONY: build start stop check
+.PHONY: build build-local start stop check
 
 build:
 	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
 	@[ -f .dd-env ] || echo "# placeholder — set DD_API_KEY in your shell or .dd-env" > .dd-env
 	docker build -t $(IMAGE) .
+
+build-local:
+	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
+	@[ -f .dd-env ] || echo "# placeholder — set DD_API_KEY in your shell or .dd-env" > .dd-env
+	go mod tidy
+	go mod vendor
+	docker build -f Dockerfile.local -t $(IMAGE) .
 
 start:
 	docker run --rm -d -p $(PORT):$(PORT) --name $(IMAGE) $(IMAGE)

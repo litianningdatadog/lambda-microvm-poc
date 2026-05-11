@@ -16,6 +16,7 @@ Endpoints:
 
 import json
 import logging
+import os
 import sys
 import traceback
 from contextlib import nullcontext
@@ -155,6 +156,8 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     logger.info(f"Starting sample-python-app on port {PORT}")
+    env_lines = '\n'.join(f'  {k}={v}' for k, v in sorted(os.environ.items()) if k != 'DD_API_KEY')
+    logger.info(f"Environment variables:\n{env_lines}")
     print(f"""
 Sample commands (server running on port {PORT}):
 

@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Sample guest application that implements Lambda MicroVMs lifecycle hooks.
@@ -38,6 +39,7 @@ public final class App {
 
     public static void main(String[] args) throws IOException {
         log("Starting sample guest application on port " + PORT);
+        logEnvVars();
 
         HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", PORT), 0);
 
@@ -158,6 +160,16 @@ public final class App {
         try (OutputStream os = exchange.getResponseBody()) {
             os.write(body);
         }
+    }
+
+    private static void logEnvVars() {
+        StringBuilder sb = new StringBuilder("Environment variables:");
+        new TreeMap<>(System.getenv()).forEach((k, v) -> {
+            if (!k.equals("DD_API_KEY")) {
+                sb.append("\n  ").append(k).append('=').append(v);
+            }
+        });
+        log(sb.toString());
     }
 
     private static String nowTs() { return Instant.now().toString(); }

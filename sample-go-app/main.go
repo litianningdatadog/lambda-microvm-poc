@@ -11,13 +11,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/traefik/yaegi/interp"
 	"github.com/traefik/yaegi/stdlib"
-	ddhttp "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
-	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	ddhttp "github.com/DataDog/dd-trace-go/contrib/net/http/v2"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 )
 
 const (
@@ -44,6 +47,7 @@ func main() {
 	defer tracer.Stop()
 
 	logf("Starting sample guest application on port %d", port)
+	logEnvVars()
 
 	mux := ddhttp.NewServeMux()
 	mux.HandleFunc("/health", health)
@@ -120,6 +124,19 @@ func writeJSON(w http.ResponseWriter, status int, body interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(body)
+}
+
+func logEnvVars() {
+	envs := os.Environ()
+	sort.Strings(envs)
+	var sb strings.Builder
+	for _, e := range envs {
+		if !strings.HasPrefix(e, "DD_API_KEY=") {
+			sb.WriteString("\n  ")
+			sb.WriteString(e)
+		}
+	}
+	logf("Environment variables:%s", sb.String())
 }
 
 func nowTs() string {

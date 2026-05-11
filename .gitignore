@@ -54,3 +54,6 @@ Boto3CliV1Artifacts/awscli-bundle.zip
 /sample-java-app/serverless-init-linux-arm64
 /sample-nodejs-app/serverless-init-linux-arm64
 /sample-python-app/serverless-init-linux-arm64
+/sample-go-app/vendor/
+/sample-nodejs-app/dd-trace-local.tgz
+/sample-python-app/ddtrace-*.whl
