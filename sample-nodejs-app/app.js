@@ -34,6 +34,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy' });
 });
 
+app.post(`${BASE_PATH}/validate`, (req, res) => {
+  log(`Validate hook called [ts=${nowTs()}, microVmId=${microVmId}]`);
+  res.status(200).end();
+});
+
 app.post(`${BASE_PATH}/ready`, (req, res) => {
   log(`Ready hook called [ts=${nowTs()}, microVmId=${microVmId}]`);
   res.status(200).end();

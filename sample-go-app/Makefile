@@ -8,12 +8,10 @@ DD_TRACE_GO_REPO := /Users/tianning.li/DataDog/dd-trace-go
 
 build:
 	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
-	@[ -f .dd-env ] || echo "# placeholder — set DD_API_KEY in your shell or .dd-env" > .dd-env
 	docker build -t $(IMAGE) .
 
 build-local:
 	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
-	@[ -f .dd-env ] || echo "# placeholder — set DD_API_KEY in your shell or .dd-env" > .dd-env
 	go mod tidy
 	go mod vendor
 	docker build -f Dockerfile.local -t $(IMAGE) .

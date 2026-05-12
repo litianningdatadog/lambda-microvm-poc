@@ -19,9 +19,6 @@ COPY --from=build /out/server /app/server
 
 COPY serverless-init-linux-arm64 /serverless-init
 RUN chmod +x /serverless-init
-COPY .dd-env /app/.dd-env
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
 
 EXPOSE 8080
 
@@ -42,5 +39,5 @@ ENV DD_TRACE_STARTUP_LOGS=true
 ENV DD_TRACE_DEBUG=true
 ENV DD_SERVERLESS_MICROVM_USER_APP_PORT=8080
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/serverless-init"]
 CMD ["/app/server"]

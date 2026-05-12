@@ -44,6 +44,7 @@ public final class App {
         HttpServer server = HttpServer.create(new InetSocketAddress("0.0.0.0", PORT), 0);
 
         server.createContext("/health", App::handleHealth);
+        server.createContext(BASE_PATH + "/validate", App::handleValidate);
         server.createContext(BASE_PATH + "/ready", App::handleReady);
         server.createContext(BASE_PATH + "/launch", App::handleLaunch);
         server.createContext(BASE_PATH + "/resume", App::handleResume);
@@ -60,6 +61,13 @@ public final class App {
     private static void handleHealth(HttpExchange exchange) throws IOException {
         log("Health check called [ts=" + nowTs() + ", microVmId=" + microVmId + "]");
         writeJson(exchange, 200, Map.of("status", "healthy"));
+    }
+
+    @Trace(operationName = "http.server.request", resourceName = "POST /validate")
+    private static void handleValidate(HttpExchange exchange) throws IOException {
+        log("Validate hook called [ts=" + nowTs() + ", microVmId=" + microVmId + "]");
+        exchange.sendResponseHeaders(200, -1);
+        exchange.close();
     }
 
     @Trace(operationName = "http.server.request", resourceName = "POST /ready")

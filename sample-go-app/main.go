@@ -51,6 +51,7 @@ func main() {
 
 	mux := ddhttp.NewServeMux()
 	mux.HandleFunc("/health", health)
+	mux.HandleFunc(basePath+"/validate", emptyHook("Validate"))
 	mux.HandleFunc(basePath+"/ready", emptyHook("Ready"))
 	mux.HandleFunc(basePath+"/launch", launch)
 	mux.HandleFunc(basePath+"/resume", emptyHook("Resume"))

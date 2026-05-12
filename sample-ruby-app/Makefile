@@ -1,4 +1,4 @@
-IMAGE     := sample-java-app
+IMAGE     := sample-ruby-app
 PORT      := 8080
 BASE_PATH := /aws/lambda-microvms/runtime/beta/v1
 HOST      := http://localhost:$(PORT)
@@ -15,8 +15,8 @@ start:
 stop:
 	docker stop $(IMAGE)
 
-# `check` smoke-tests a *running* container (start it with `make start` first).
-# Fails the target on any non-2xx response.
+# `check` smoke-tests a *running* container (start it in another terminal
+# with `make start` first). Fails the target on any non-2xx response.
 check:
 	@echo "→ GET  /health"
 	@curl -fsS $(HOST)/health && echo
@@ -36,4 +36,4 @@ check:
 	@echo "→ POST /execute"
 	@curl -fsS -X POST $(HOST)/execute \
 		-H 'Content-Type: application/json' \
-		-d '{"code":"System.out.println(1 + 1);"}' && echo
+		-d '{"code":"puts 1 + 1"}' && echo

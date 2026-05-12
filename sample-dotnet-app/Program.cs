@@ -27,6 +27,12 @@ app.MapGet("/health", () =>
     return Results.Json(new { status = "healthy" });
 });
 
+app.MapPost($"{BasePath}/validate", () =>
+{
+    Log($"Validate hook called [ts={NowTs()}, microVmId={microVmId}]");
+    return Results.Ok();
+});
+
 app.MapPost($"{BasePath}/ready", () =>
 {
     Log($"Ready hook called [ts={NowTs()}, microVmId={microVmId}]");

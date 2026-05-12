@@ -1,4 +1,4 @@
-IMAGE     := sample-java-app
+IMAGE     := sample-php-app
 PORT      := 8080
 BASE_PATH := /aws/lambda-microvms/runtime/beta/v1
 HOST      := http://localhost:$(PORT)
@@ -36,4 +36,4 @@ check:
 	@echo "→ POST /execute"
 	@curl -fsS -X POST $(HOST)/execute \
 		-H 'Content-Type: application/json' \
-		-d '{"code":"System.out.println(1 + 1);"}' && echo
+		-d '{"code":"echo 1 + 1;"}' && echo

@@ -24,9 +24,6 @@ COPY --from=datadog/dd-lib-dotnet-init /datadog-init/monitoring-home/ /dd_dotnet
 
 COPY serverless-init-linux-arm64 /serverless-init
 RUN chmod +x /serverless-init
-COPY .dd-env /app/.dd-env
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
 
 EXPOSE 8080
 
@@ -52,5 +49,5 @@ ENV CORECLR_PROFILER_PATH=/dd_dotnet/Datadog.Trace.ClrProfiler.Native.so
 ENV DD_DOTNET_TRACER_HOME=/dd_dotnet
 ENV DD_SERVERLESS_MICROVM_USER_APP_PORT=8080
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/serverless-init"]
 CMD ["dotnet", "sample-dotnet-app.dll"]
