@@ -9,12 +9,12 @@ DD_TRACE_PY_WHEEL_NAME := $(notdir $(DD_TRACE_PY_WHEEL))
 
 build:
 	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
-	@[ -f .dd-env ] || echo "# placeholder — set DD_API_KEY in your shell or .dd-env" > .dd-env
+
 	docker build -t $(IMAGE) .
 
 build-local:
 	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
-	@[ -f .dd-env ] || echo "# placeholder — set DD_API_KEY in your shell or .dd-env" > .dd-env
+
 	cp $(DD_TRACE_PY_WHEEL) .
 	docker build \
 		--build-arg DD_TRACE_WHEEL=$(DD_TRACE_PY_WHEEL_NAME) \

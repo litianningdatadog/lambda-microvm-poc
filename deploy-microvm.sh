@@ -40,7 +40,7 @@ set +x
 # to pick up awsv — which is why this script is `#!/usr/bin/env zsh`, not bash.
 #
 # The lambda-microvms service model ships in this repo as
-# `lambdamicrovms-2025-09-09.json`. This script registers it with the
+# `lambdamicrovms-2025-09-09.api.json`. This script registers it with the
 # AWS CLI on every invocation (idempotent), so a fresh clone works
 # without first running the `aws configure add-model` step from
 # CLAUDE.md's "CLI Setup" section.
@@ -76,11 +76,11 @@ set -euo pipefail
 # Resolve this script's own directory (independent of the caller's cwd)
 # so we can find the lambda-microvms service model next to it in the repo.
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
-MODEL_FILE="$SCRIPT_DIR/lambdamicrovms-2025-09-09.json"
+MODEL_FILE="$SCRIPT_DIR/lambdamicrovms-2025-09-09.api.json"
 
 if [[ ! -f "$MODEL_FILE" ]]; then
   print -u2 "ERROR: Service model not found at $MODEL_FILE"
-  print -u2 "       This script expects lambdamicrovms-2025-09-09.json to live"
+  print -u2 "       This script expects lambdamicrovms-2025-09-09.api.json to live"
   print -u2 "       next to it in the repo root."
   exit 1
 fi
@@ -111,7 +111,7 @@ S3_BUCKET="${S3_BUCKET:-$APP_NAME}"
 #   - 10-char MMDDHHMMSS timestamp (second-precision, unique within a year)
 IMAGE_NAME="${IMAGE_NAME:-${APP_NAME:0:19}-$(date +%m%d%H%M%S)}"
 BUILD_ROLE_ARN="${BUILD_ROLE_ARN:-arn:aws:iam::425362996713:role/microvm-build-role}"
-BASE_IMAGE_ARN="${BASE_IMAGE_ARN:-arn:aws:lambda:::microvm-image:lambda-microvms-al2023-1}"
+BASE_IMAGE_ARN="${BASE_IMAGE_ARN:-arn:aws:lambda:::microvm-image:lambda-microvms-al2023-2}"
 REGION="${REGION:-us-east-2}"
 ENDPOINT="${ENDPOINT:-https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev}"
 INGRESS_CONNECTOR="${INGRESS_CONNECTOR:-arn:aws:lambda:::network-connector:aws-network-connector:ALL_INGRESS}"
@@ -161,22 +161,6 @@ log "Hooks:      all ENABLED; platform-default timeouts"
 log "[1/5] Creating zip"
 rm -f "$ZIP_PATH"
 
-# If DD_API_KEY is set in the shell, ship it into the zip as .dd-env
-# (entrypoint.sh sources this on container start). The MicroVM build
-# pipeline has no access to your host env, so this is how the key
-# actually reaches the guest. The file is cleaned up via EXIT trap so
-# it doesn't leak as plaintext into the repo after the script finishes.
-DD_ENV_FILE="$APP_DIR/.dd-env"
-if [[ -n "${DD_API_KEY:-}" ]]; then
-  ( umask 077
-    printf 'export DD_API_KEY=%q\n' "$DD_API_KEY" > "$DD_ENV_FILE"
-  )
-  trap "rm -f '$DD_ENV_FILE'" EXIT
-  log "      shipping .dd-env with DD_API_KEY (${#DD_API_KEY} chars)"
-else
-  log "      WARN: DD_API_KEY not set in shell — agent will fail auth"
-fi
-
 ( cd "$APP_DIR" && zip -qr "$ZIP_PATH" . -x '*.DS_Store' 'claude-notifications.jsonl' )
 log "      zip size: $(du -h "$ZIP_PATH" | awk '{print $1}')"
 
@@ -193,21 +177,50 @@ awsv aws s3 cp "$ZIP_PATH" "$S3_URI" --region "$REGION"
 # --- 3. Create MicroVM Image ----------------------------------------------
 log "[3/5] Creating MicroVM image '$IMAGE_NAME'"
 
-# Build snapshotConfig JSON with applicationIntegrationConfiguration.
-# Hooks are ENABLED without explicit timeouts — the API rejects *TimeoutMilliseconds
-# fields in image-creation requests (server-side constraint not reflected in schema).
-# Platform-default timeouts apply (60m ready/launch, 120s suspend/resume, 60s terminate).
-SNAPSHOT_CONFIG_JSON='{
-  "applicationIntegrationConfiguration": {
+# Build snapshotConfig JSON with hooks. Timeouts per the developer guide defaults:
+#   ready/launch: 60m, suspend/resume: 120s, terminate: 60s.
+# readyHookTimeoutMilliseconds is set to 60s (per AWS guidance) — gives the user app
+# time to start and respond to the /ready hook before the platform times out.
+#
+# environmentVariables are baked into the snapshot and injected into the container at
+# start — no need to ship a .dd-env file in the zip for these static config values.
+# DD_SERVERLESS_MICROVM_USER_APP_PORT is baked into each sample-app Dockerfile
+# rather than here so it is available at both image-creation time and launch time.
+SNAPSHOT_CONFIG_JSON=$(cat <<EOF
+{
+  "hooks": {
     "lifecycleHookPort": 9000,
-    "readyHook":        "ENABLED",
-    "validateHook":     "ENABLED",
-    "launchHook":       "ENABLED",
-    "resumeHook":       "ENABLED",
-    "suspendHook":      "ENABLED",
-    "terminateHook":    "ENABLED"
+    "readyHook":                    "ENABLED",
+    "readyHookTimeoutMilliseconds": 60000,
+    "validateHook":                 "ENABLED",
+    "validateHookTimeoutMilliseconds": 60000,
+    "launchHook":                   "ENABLED",
+    "resumeHook":                   "ENABLED",
+    "suspendHook":                  "ENABLED",
+    "terminateHook":                "ENABLED"
+  },
+  "environmentVariables": {
+    "DD_SITE":             "datadoghq.com",
+    "DD_VERSION":          "1",
+    "DD_ENV":              "devmicrovm",
+    "DD_LOGS_ENABLED":     "true",
+    "DD_LOG_LEVEL":        "debug",
+    "DD_TRACE_SAMPLE_RATE": "1.0",
+    "DD_LOGS_INJECTION":   "true",
+    "DD_TRACE_ENABLED":    "true",
+    "DD_TRACE_AGENT_URL":  "http://localhost:8126",
+    "DD_TRACE_STARTUP_LOGS": "true",
+    "DD_TRACE_DEBUG":      "true"
   }
-}'
+}
+EOF
+)
+if [[ -n "${DD_API_KEY:-}" ]]; then
+  SNAPSHOT_CONFIG_JSON=$(printf '%s' "$SNAPSHOT_CONFIG_JSON" | jq --arg v "$DD_API_KEY" '.environmentVariables.DD_API_KEY = $v')
+fi
+
+
+print $SNAPSHOT_CONFIG_JSON
 
 IMAGE_ARN=$(awsv aws lambda-microvms create-micro-vm-image \
   --code-artifact "uri=$S3_URI" \

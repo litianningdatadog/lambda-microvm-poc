@@ -7,6 +7,7 @@ Uses only the Python standard library (no external dependencies).
 Endpoints:
 - GET  /health
 - POST /aws/lambda-microvms/runtime/beta/v1/ready
+- POST /aws/lambda-microvms/runtime/beta/v1/validate
 - POST /aws/lambda-microvms/runtime/beta/v1/launch
 - POST /aws/lambda-microvms/runtime/beta/v1/resume
 - POST /aws/lambda-microvms/runtime/beta/v1/suspend
@@ -33,6 +34,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [s
 logger = logging.getLogger(__name__)
 
 BASE_PATH = "/aws/lambda-microvms/runtime/beta/v1"
+VALIDATE_PATH = f"{BASE_PATH}/validate"
 PORT = 8080
 
 micro_vm_id = None
@@ -86,7 +88,11 @@ class Handler(BaseHTTPRequestHandler):
         global micro_vm_id
 
         with _span("POST", self.path):
-            if self.path == f"{BASE_PATH}/ready":
+            if self.path == VALIDATE_PATH:
+                logger.info(f"Validate hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+                _send_empty(self)
+
+            elif self.path == f"{BASE_PATH}/ready":
                 logger.info(f"Ready hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
                 _send_empty(self)
 
