@@ -34,10 +34,6 @@ EXPOSE 9000 8080
 # Lambda MicroVM runtime) and the binary to be invoked with a child command.
 # It wraps "python3.11 app.py": captures stdout/stderr into the Datadog log
 # pipeline, forwards Unix signals to the child, and propagates its exit code.
-# Fake MicroVM ARN so serverless-init activates init mode locally.
-# Remove this ENV line when deploying to a real Lambda MicroVM environment.
-ENV AWS_LAMBDA_FUNCTION_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:serverless-init-poc-id
-ENV AWS_LAMBDA_MICROVM_IMAGE_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:serverless-init-poc-id
 # Required by the trace-agent's read_cloud_env() to identify the environment.
 # In a real MicroVM the Lambda runtime sets this automatically alongside the ARN.
 ENV AWS_LAMBDA_FUNCTION_NAME=serverless-init-poc-id

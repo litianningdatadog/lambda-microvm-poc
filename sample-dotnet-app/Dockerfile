@@ -28,8 +28,6 @@ RUN chmod +x /serverless-init
 EXPOSE 8080
 
 ENV ASPNETCORE_URLS=http://+:8080
-ENV AWS_LAMBDA_FUNCTION_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:sample-dotnet-app
-ENV AWS_LAMBDA_MICROVM_IMAGE_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:sample-dotnet-app
 ENV AWS_LAMBDA_FUNCTION_NAME=sample-dotnet-app
 ENV DD_SERVICE=sample-dotnet-app
 ENV CORECLR_ENABLE_PROFILING=1

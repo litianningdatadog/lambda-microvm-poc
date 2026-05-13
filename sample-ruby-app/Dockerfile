@@ -18,8 +18,6 @@ RUN chmod +x /serverless-init
 
 EXPOSE 8080
 
-ENV AWS_LAMBDA_FUNCTION_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:sample-ruby-app
-ENV AWS_LAMBDA_MICROVM_IMAGE_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:sample-ruby-app
 ENV AWS_LAMBDA_FUNCTION_NAME=sample-ruby-app
 ENV DD_SERVICE=sample-ruby-app
 ENV DD_SERVERLESS_MICROVM_USER_APP_PORT=8080

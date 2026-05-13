@@ -82,9 +82,6 @@ COPY app.py /app/app.py
 EXPOSE 8080 9000 8125/udp 8126
 
 # --- Faked-for-local env (remove in real MicroVM deploys) ------------------
-# The MicroVM runtime sets AWS_LAMBDA_FUNCTION_ARN automatically; we fake
-# it here so `docker run` works locally without env flags.
-ENV AWS_LAMBDA_FUNCTION_ARN=arn:aws:lambda:us-east-2:123456789012:microvm-image:sample-flask-app-datadog-agent-poc
 # Required by the trace-agent's read_cloud_env() to identify the environment.
 # In a real MicroVM the Lambda runtime sets this automatically alongside the ARN.
 ENV AWS_LAMBDA_FUNCTION_NAME=sample-flask-app-datadog-agent-poc
