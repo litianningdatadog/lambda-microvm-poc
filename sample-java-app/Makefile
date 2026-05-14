@@ -3,10 +3,20 @@ PORT      := 8080
 BASE_PATH := /aws/lambda-microvms/runtime/beta/v1
 HOST      := http://localhost:$(PORT)
 
-.PHONY: build start stop check
+DD_TRACE_JAVA_REPO := /Users/tianning.li/DataDog/dd-trace-java
+DD_TRACE_JAVA_JAR  := $(DD_TRACE_JAVA_REPO)/dd-java-agent/build/libs/dd-java-agent-1.56.0-SNAPSHOT.jar
+
+.PHONY: build build-local start stop check
 
 build:
 	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
+	[ -f $(DD_TRACE_JAVA_JAR) ] && cp $(DD_TRACE_JAVA_JAR) . || true
+	docker build -t $(IMAGE) .
+
+build-local:
+	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
+	cd $(DD_TRACE_JAVA_REPO) && ./gradlew :dd-java-agent:shadowJar -x test --no-daemon
+	cp $(DD_TRACE_JAVA_JAR) .
 	docker build -t $(IMAGE) .
 
 start:
