@@ -11,36 +11,30 @@
  */
 
 const express = require('express');
+const pino = require('pino');
 const vm = require('vm');
 
 const BASE_PATH = '/aws/lambda-microvms/runtime/beta/v1';
 const PORT = 8080;
 
+const logger = pino({ name: 'sample-nodejs-app' });
 const app = express();
 app.use(express.json());
 
 let microVmId = null;
 
-function nowTs() {
-  return new Date().toISOString();
-}
-
-function log(msg) {
-  console.log(`${nowTs()} - INFO - [sample-nodejs-app] ${msg}`);
-}
-
 app.get('/health', (req, res) => {
-  log(`Health check called [ts=${nowTs()}, microVmId=${microVmId}]`);
+  logger.info({ microVmId }, 'Health check called');
   res.json({ status: 'healthy' });
 });
 
 app.post(`${BASE_PATH}/validate`, (req, res) => {
-  log(`Validate hook called [ts=${nowTs()}, microVmId=${microVmId}]`);
+  logger.info({ microVmId }, 'Validate hook called');
   res.status(200).end();
 });
 
 app.post(`${BASE_PATH}/ready`, (req, res) => {
-  log(`Ready hook called [ts=${nowTs()}, microVmId=${microVmId}]`);
+  logger.info({ microVmId }, 'Ready hook called');
   res.status(200).end();
 });
 
@@ -48,22 +42,22 @@ app.post(`${BASE_PATH}/launch`, (req, res) => {
   const data = req.body || {};
   microVmId = data.microVmId;
   const meshIpv6Address = data.meshIpv6Address;
-  log(`Launch hook called — ts=${nowTs()}, microVmId=${microVmId}, meshIpv6Address=${meshIpv6Address}`);
+  logger.info({ microVmId, meshIpv6Address }, 'Launch hook called');
   res.status(200).end();
 });
 
 app.post(`${BASE_PATH}/resume`, (req, res) => {
-  log(`Resume hook called [ts=${nowTs()}, microVmId=${microVmId}]`);
+  logger.info({ microVmId }, 'Resume hook called');
   res.status(200).end();
 });
 
 app.post(`${BASE_PATH}/suspend`, (req, res) => {
-  log(`Suspend hook called [ts=${nowTs()}, microVmId=${microVmId}]`);
+  logger.info({ microVmId }, 'Suspend hook called');
   res.status(200).end();
 });
 
 app.post(`${BASE_PATH}/terminate`, (req, res) => {
-  log(`Terminate hook called [ts=${nowTs()}, microVmId=${microVmId}]`);
+  logger.info({ microVmId }, 'Terminate hook called');
   res.status(200).end();
 });
 
@@ -72,7 +66,7 @@ app.post('/execute', (req, res) => {
     const code = (req.body || {}).code || '';
     if (!code) return res.status(400).json({ error: 'No code provided' });
 
-    log(`Execute called [ts=${nowTs()}, microVmId=${microVmId}]`);
+    logger.info({ microVmId }, 'Execute called');
 
     let stdout = '';
     let stderr = '';
@@ -96,12 +90,11 @@ app.post('/execute', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  log(`Starting sample guest application on port ${PORT}`);
-  const envVars = Object.entries(process.env)
-    .filter(([key]) => key !== 'DD_API_KEY')
-    .map(([key, val]) => `  ${key}=${val}`)
-    .join('\n');
-  log(`Environment variables:\n${envVars}`);
+  logger.info({ port: PORT }, 'Starting sample guest application');
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => key !== 'DD_API_KEY')
+  );
+  logger.info({ env }, 'Environment variables');
   console.log(`
 Sample commands (server running on port ${PORT}):
 
