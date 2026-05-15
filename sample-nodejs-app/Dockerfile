@@ -10,7 +10,11 @@ RUN dnf install -y \
 
 COPY package.json .
 RUN npm install --omit=dev
-RUN npm install --prefix /dd_tracer/node dd-trace  --save
+#RUN npm install --prefix /dd_tracer/node dd-trace  --save
+
+ARG DD_TRACE_TGZ=dd-trace-local.tgz
+COPY ${DD_TRACE_TGZ} /tmp/dd-trace-local.tgz
+RUN npm install --prefix /dd_tracer/node /tmp/dd-trace-local.tgz
 
 COPY app.js .
 
