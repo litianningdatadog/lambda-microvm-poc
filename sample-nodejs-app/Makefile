@@ -19,7 +19,7 @@ build-local:
 	docker build --build-arg DD_TRACE_TGZ=dd-trace-local.tgz -t $(IMAGE) -f Dockerfile.local .
 
 start:
-	docker run --rm -d -p $(PORT):$(PORT) --name $(IMAGE) $(IMAGE)
+	docker run --rm -e DD_API_KEY=$$DD_API_KEY -d -p $(PORT):$(PORT) --name $(IMAGE) $(IMAGE)
 
 stop:
 	docker stop $(IMAGE)

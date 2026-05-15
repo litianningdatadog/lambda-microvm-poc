@@ -10,7 +10,7 @@ build:
 	docker build -t $(IMAGE) .
 
 start:
-	docker run --rm -d -p $(PORT):$(PORT) --name $(IMAGE) $(IMAGE)
+	docker run --rm -e DD_API_KEY=$$DD_API_KEY -d -p $(PORT):$(PORT) --name $(IMAGE) $(IMAGE)
 
 stop:
 	docker stop $(IMAGE)
