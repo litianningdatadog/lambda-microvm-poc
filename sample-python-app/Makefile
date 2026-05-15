@@ -2,19 +2,21 @@ IMAGE            := sample-python-app
 PORT             := 8080
 BASE_PATH        := /aws/lambda-microvms/runtime/beta/v1
 HOST             := http://localhost:$(PORT)
-	DD_TRACE_PY_WHEEL      := /Users/tianning.li/DataDog/dd-trace-py/dist/ddtrace-4.9.0rc1-cp312-cp312-linux_aarch64.whl
+DD_TRACE_PY_WHEEL      := /Users/tianning.li/DataDog/dd-trace-py/dist/ddtrace-4.9.0rc2-cp312-cp312-linux_aarch64.whl
 DD_TRACE_PY_WHEEL_NAME := $(notdir $(DD_TRACE_PY_WHEEL))
 
 .PHONY: build build-local start stop check
 
 build:
 	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
-
-	docker build -t $(IMAGE) .
+	cp $(DD_TRACE_PY_WHEEL) .
+#	docker build -t $(IMAGE) .
+	docker build \
+		--build-arg DD_TRACE_WHEEL=$(DD_TRACE_PY_WHEEL_NAME) \
+		-t $(IMAGE) .
 
 build-local:
 	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
-
 	cp $(DD_TRACE_PY_WHEEL) .
 	docker build \
 		--build-arg DD_TRACE_WHEEL=$(DD_TRACE_PY_WHEEL_NAME) \
