@@ -1,7 +1,9 @@
 IMAGE     := sample-java-app
 PORT      := 8080
+HOOKS_PORT       := 9000
 BASE_PATH := /aws/lambda-microvms/runtime/beta/v1
 HOST      := http://localhost:$(PORT)
+HOOKS_HOST       := http://localhost:$(HOOKS_PORT)
 
 DD_TRACE_JAVA_REPO := /Users/tianning.li/DataDog/dd-trace-java
 DD_TRACE_JAVA_JAR  := $(DD_TRACE_JAVA_REPO)/dd-java-agent/build/libs/dd-java-agent-1.56.0-SNAPSHOT.jar
@@ -17,10 +19,10 @@ build-local:
 	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
 	cd $(DD_TRACE_JAVA_REPO) && ./gradlew :dd-java-agent:shadowJar -x test --no-daemon
 	cp $(DD_TRACE_JAVA_JAR) .
-	docker build -t $(IMAGE) .
+	docker build -f Dockerfile.local -t $(IMAGE) .
 
 start:
-	docker run --rm -e DD_API_KEY=$$DD_API_KEY -d -p $(PORT):$(PORT) --name $(IMAGE) $(IMAGE)
+	docker run --rm -e DD_API_KEY=$$DD_API_KEY -d -p $(PORT):$(PORT) -p $(HOOKS_PORT):$(HOOKS_PORT) --name $(IMAGE) $(IMAGE)
 
 stop:
 	docker stop $(IMAGE)
@@ -33,16 +35,16 @@ check:
 	@echo "→ POST $(BASE_PATH)/ready"
 	@curl -fsS -X POST $(HOST)$(BASE_PATH)/ready -o /dev/null -w "  HTTP %{http_code}\n"
 	@echo "→ POST $(BASE_PATH)/launch"
-	@curl -fsS -X POST $(HOST)$(BASE_PATH)/launch \
+	@curl -fsS -X POST $(HOOKS_HOST)$(BASE_PATH)/launch \
 		-H 'Content-Type: application/json' \
 		-d '{"microVmId":"vm-local","meshIpv6Address":"::1"}' \
 		-o /dev/null -w "  HTTP %{http_code}\n"
 	@echo "→ POST $(BASE_PATH)/resume"
-	@curl -fsS -X POST $(HOST)$(BASE_PATH)/resume -o /dev/null -w "  HTTP %{http_code}\n"
+	@curl -fsS -X POST $(HOOKS_HOST)$(BASE_PATH)/resume -o /dev/null -w "  HTTP %{http_code}\n"
 	@echo "→ POST $(BASE_PATH)/suspend"
-	@curl -fsS -X POST $(HOST)$(BASE_PATH)/suspend -o /dev/null -w "  HTTP %{http_code}\n"
+	@curl -fsS -X POST $(HOOKS_HOST)$(BASE_PATH)/suspend -o /dev/null -w "  HTTP %{http_code}\n"
 	@echo "→ POST $(BASE_PATH)/terminate"
-	@curl -fsS -X POST $(HOST)$(BASE_PATH)/terminate -o /dev/null -w "  HTTP %{http_code}\n"
+	@curl -fsS -X POST $(HOOKS_HOST)$(BASE_PATH)/terminate -o /dev/null -w "  HTTP %{http_code}\n"
 	@echo "→ POST /execute"
 	@curl -fsS -X POST $(HOST)/execute \
 		-H 'Content-Type: application/json' \

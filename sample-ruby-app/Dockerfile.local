@@ -1,25 +1,17 @@
-FROM --platform=linux/arm64 golang:1.25 AS build
-
-WORKDIR /build
-
-# vendor/ is pre-populated on the host by `go mod vendor` (using the local
-# replace directive for dd-trace-go) before this image is built.
-COPY go.mod go.sum ./
-COPY vendor ./vendor
-COPY main.go ./
-
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -mod=vendor -o /out/server .
-
 FROM --platform=linux/arm64 public.ecr.aws/amazonlinux/amazonlinux:2023
 
 WORKDIR /app
 
 RUN dnf install -y \
+    ruby rubygems ruby-devel gcc make \
     lsof net-tools procps-ng htop iproute iputils \
     vim-enhanced nano wget unzip file \
     && dnf clean all
 
-COPY --from=build /out/server /app/server
+RUN gem install bundler --no-document
+RUN GEM_HOME=/dd_tracer/ruby gem install datadog --no-document
+
+COPY app.rb Gemfile ./
 
 COPY serverless-init-linux-arm64 /serverless-init
 RUN chmod +x /serverless-init
@@ -27,12 +19,12 @@ RUN chmod +x /serverless-init
 EXPOSE 8080
 EXPOSE 9000
 
-ENV AWS_LAMBDA_MICROVM_IMAGE_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:sample-go-app
-ENV AWS_LAMBDA_FUNCTION_NAME=sample-go-app
+ENV AWS_LAMBDA_MICROVM_IMAGE_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:sample-ruby-app
+ENV AWS_LAMBDA_FUNCTION_NAME=sample-ruby-app
 ENV DD_SITE=datadoghq.com
-ENV DD_SERVICE=sample-go-app
-ENV DD_ENV=devmicrovm
+ENV DD_SERVICE=sample-ruby-app
 ENV DD_VERSION=1
+ENV DD_ENV=devmicrovm
 ENV DD_LOGS_ENABLED=true
 ENV DD_LOG_LEVEL=debug
 ENV DD_TRACE_SAMPLE_RATE=1.0
@@ -42,6 +34,7 @@ ENV DD_TRACE_AGENT_URL=http://localhost:8126
 ENV DD_TRACE_STARTUP_LOGS=true
 ENV DD_TRACE_DEBUG=true
 ENV DD_SERVERLESS_MICROVM_USER_APP_PORT=8080
+ENV GEM_PATH=/dd_tracer/ruby
 
 ENTRYPOINT ["/serverless-init"]
-CMD ["/app/server"]
+CMD ["ruby", "app.rb"]
