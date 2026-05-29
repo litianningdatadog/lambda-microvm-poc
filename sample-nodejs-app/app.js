@@ -10,31 +10,31 @@
  *  - GET  /health
  */
 
-const express = require('express');
-const pino = require('pino');
-const vm = require('vm');
+const express = require("express");
+const pino = require("pino");
+const vm = require("vm");
 
-const BASE_PATH = '/aws/lambda-microvms/runtime/beta/v1';
+const BASE_PATH = "/aws/lambda-microvms/runtime/beta/v1";
 const PORT = 8080;
 
-const logger = pino({ name: 'sample-nodejs-app' });
+const logger = pino({ name: "sample-nodejs-app" });
 const app = express();
 app.use(express.json());
 
 let microVmId = null;
 
-app.get('/health', (req, res) => {
-  logger.info({ microVmId }, 'Health check called');
-  res.json({ status: 'healthy' });
+app.get("/health", (req, res) => {
+  logger.info({ microVmId }, "Health check called");
+  res.json({ status: "healthy" });
 });
 
 app.post(`${BASE_PATH}/validate`, (req, res) => {
-  logger.info({ microVmId }, 'Validate hook called');
+  logger.info("Validate hook called");
   res.status(200).end();
 });
 
 app.post(`${BASE_PATH}/ready`, (req, res) => {
-  logger.info({ microVmId }, 'Ready hook called');
+  logger.info({ microVmId }, "Ready hook called");
   res.status(200).end();
 });
 
@@ -42,39 +42,45 @@ app.post(`${BASE_PATH}/launch`, (req, res) => {
   const data = req.body || {};
   microVmId = data.microVmId;
   const meshIpv6Address = data.meshIpv6Address;
-  logger.info({ microVmId, meshIpv6Address }, 'Launch hook called');
+  logger.info({ microVmId, meshIpv6Address }, "Launch hook called");
   res.status(200).end();
 });
 
 app.post(`${BASE_PATH}/resume`, (req, res) => {
-  logger.info({ microVmId }, 'Resume hook called');
+  logger.info({ microVmId }, "Resume hook called");
   res.status(200).end();
 });
 
 app.post(`${BASE_PATH}/suspend`, (req, res) => {
-  logger.info({ microVmId }, 'Suspend hook called');
+  logger.info({ microVmId }, "Suspend hook called");
   res.status(200).end();
 });
 
 app.post(`${BASE_PATH}/terminate`, (req, res) => {
-  logger.info({ microVmId }, 'Terminate hook called');
+  logger.info({ microVmId }, "Terminate hook called");
   res.status(200).end();
 });
 
-app.post('/execute', (req, res) => {
+app.post("/execute", (req, res) => {
   try {
-    const code = (req.body || {}).code || '';
-    if (!code) return res.status(400).json({ error: 'No code provided' });
+    const code = (req.body || {}).code || "";
+    if (!code) return res.status(400).json({ error: "No code provided" });
 
-    logger.info({ microVmId }, 'Execute called');
+    logger.info({ microVmId }, "Execute called");
 
-    let stdout = '';
-    let stderr = '';
+    let stdout = "";
+    let stderr = "";
     const sandbox = {
       console: {
-        log: (...args) => { stdout += args.map((a) => String(a)).join(' ') + '\n'; },
-        error: (...args) => { stderr += args.map((a) => String(a)).join(' ') + '\n'; },
-        warn: (...args) => { stderr += args.map((a) => String(a)).join(' ') + '\n'; },
+        log: (...args) => {
+          stdout += args.map((a) => String(a)).join(" ") + "\n";
+        },
+        error: (...args) => {
+          stderr += args.map((a) => String(a)).join(" ") + "\n";
+        },
+        warn: (...args) => {
+          stderr += args.map((a) => String(a)).join(" ") + "\n";
+        },
       },
     };
 
@@ -82,19 +88,23 @@ app.post('/execute', (req, res) => {
       vm.runInNewContext(code, sandbox, { timeout: 5000 });
       return res.json({ success: true, output: stdout, stderr });
     } catch (err) {
-      return res.json({ success: false, error: (err && err.stack) || String(err), stderr });
+      return res.json({
+        success: false,
+        error: (err && err.stack) || String(err),
+        stderr,
+      });
     }
   } catch (err) {
     return res.status(500).json({ error: String(err) });
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  logger.info({ port: PORT }, 'Starting sample guest application');
+app.listen(PORT, "0.0.0.0", () => {
+  logger.info({ port: PORT }, "Starting sample guest application");
   const env = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => key !== 'DD_API_KEY')
+    Object.entries(process.env).filter(([key]) => key !== "DD_API_KEY"),
   );
-  logger.info({ env }, 'Environment variables');
+  logger.info({ env }, "Environment variables");
   console.log(`
 Sample commands (server running on port ${PORT}):
 

@@ -6,6 +6,7 @@ This application listens on port 9000 and implements ready, launch, resume,
 suspend, and terminate hooks.
 
 Endpoints:
+- POST /aws/lambda-microvms/runtime/beta/v1/validate
 - POST /aws/lambda-microvms/runtime/beta/v1/ready
 - POST /aws/lambda-microvms/runtime/beta/v1/launch
 - POST /aws/lambda-microvms/runtime/beta/v1/resume
@@ -42,6 +43,13 @@ def health():
     """Health check endpoint."""
     logger.info(f"Health check called [ts={_now_ts()}, microVmId={micro_vm_id}]")
     return jsonify({"status": "healthy"})
+
+
+@app.route(f"{BASE_PATH}/validate", methods=["POST"])
+def validate():
+    """Handle validate hook from Lambda MicroVMs."""
+    logger.info(f"Validate hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+    return "", 200
 
 
 @app.route(f"{BASE_PATH}/ready", methods=["POST"])
