@@ -22,7 +22,6 @@ RUN chmod +x /serverless-init
 
 EXPOSE 8080
 
-ENV AWS_LAMBDA_FUNCTION_NAME=sample-php-app
 ENV DD_SERVICE=sample-php-app
 ENV DD_SOURCE=php
 ENV DD_LOGS_ENABLED=true

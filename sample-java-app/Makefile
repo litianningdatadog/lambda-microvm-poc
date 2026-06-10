@@ -6,7 +6,8 @@ HOST      := http://localhost:$(PORT)
 HOOKS_HOST       := http://localhost:$(HOOKS_PORT)
 
 DD_TRACE_JAVA_REPO := /Users/tianning.li/DataDog/dd-trace-java
-DD_TRACE_JAVA_JAR  := $(DD_TRACE_JAVA_REPO)/dd-java-agent/build/libs/dd-java-agent-1.56.0-SNAPSHOT.jar
+DD_TRACE_JAVA_JAR  := $(DD_TRACE_JAVA_REPO)/dd-java-agent/build/libs/dd-java-agent-1.64.0-SNAPSHOT.jar
+
 
 .PHONY: build build-local start stop check
 

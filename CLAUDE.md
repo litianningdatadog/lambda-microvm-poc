@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Session Start
+
+- At the start of every new session, invoke the terminal-title skill (Skill tool with `skill="terminal-title"`) after receiving the user's first task prompt. Do this automatically without being asked.
+
 ## Coding Philosophy
 
 These guidelines bias toward caution over speed. The test: "Would a senior engineer say this is overcomplicated?"

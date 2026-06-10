@@ -28,7 +28,6 @@ RUN chmod +x /serverless-init
 EXPOSE 8080
 
 ENV ASPNETCORE_URLS=http://+:8080
-ENV AWS_LAMBDA_FUNCTION_NAME=sample-dotnet-app
 ENV DD_SERVICE=sample-dotnet-app
 ENV DD_SOURCE=csharp
 ENV DD_LOGS_ENABLED=true

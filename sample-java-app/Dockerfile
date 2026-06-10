@@ -30,7 +30,6 @@ RUN chmod +x /serverless-init
 
 EXPOSE 8080
 
-ENV AWS_LAMBDA_FUNCTION_NAME=sample-java-app
 ENV DD_SERVICE=sample-java-app
 ENV DD_SOURCE=java
 ENV DD_LOGS_ENABLED=true

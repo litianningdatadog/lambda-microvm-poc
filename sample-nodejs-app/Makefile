@@ -31,7 +31,7 @@ stop:
 check:
 	@echo "→ GET  /health"
 	@curl -fsS $(HOST)/health && echo
-	@echo "→ POST $(BASE_PATH)/validate"
+	@echo "→ POST $(HOOKS_HOST)$(BASE_PATH)/validate"
 	@curl -fsS -X POST $(HOOKS_HOST)$(BASE_PATH)/validate -o /dev/null -w "  HTTP %{http_code}\n"
 	@echo "→ POST $(BASE_PATH)/ready"
 	@curl -fsS -X POST $(HOOKS_HOST)$(BASE_PATH)/ready -o /dev/null -w "  HTTP %{http_code}\n"

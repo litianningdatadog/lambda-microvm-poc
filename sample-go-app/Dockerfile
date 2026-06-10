@@ -22,7 +22,6 @@ RUN chmod +x /serverless-init
 
 EXPOSE 8080
 
-ENV AWS_LAMBDA_FUNCTION_NAME=sample-go-app
 ENV DD_SERVICE=sample-go-app
 ENV DD_SOURCE=go
 ENV DD_LOGS_ENABLED=true

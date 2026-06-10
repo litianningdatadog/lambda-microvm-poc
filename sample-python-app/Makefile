@@ -4,7 +4,9 @@ HOOKS_PORT       := 9000
 BASE_PATH        := /aws/lambda-microvms/runtime/beta/v1
 HOST             := http://localhost:$(PORT)
 HOOKS_HOST       := http://localhost:$(HOOKS_PORT)
-DD_TRACE_PY_WHEEL      := /Users/tianning.li/DataDog/dd-trace-py/dist/ddtrace-4.9.0rc2-cp312-cp312-linux_aarch64.whl
+#DD_TRACE_PY_WHEEL      := /Users/tianning.li/DataDog/dd-trace-py/dist/ddtrace-4.9.0rc2-cp312-cp312-linux_aarch64.whl
+#DD_TRACE_PY_WHEEL      := /Users/tianning.li/DataDog/dd-trace-py/dist/ddtrace-4.12.0rc1-cp312-cp312-linux_aarch64.whl
+DD_TRACE_PY_WHEEL      := /Users/tianning.li/DataDog/dd-trace-py/dist/ddtrace-4.12.0rc1-cp312-cp312-linux_aarch64.whl
 DD_TRACE_PY_WHEEL_NAME := $(notdir $(DD_TRACE_PY_WHEEL))
 
 .PHONY: build build-local start stop check
