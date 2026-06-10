@@ -40,12 +40,12 @@ check:
 		-H 'Content-Type: application/json' \
 		-d '{"microVmId":"vm-local","meshIpv6Address":"::1"}' \
 		-o /dev/null -w "  HTTP %{http_code}\n"
-	@echo "→ POST $(BASE_PATH)/resume"
-	@curl -fsS -X POST $(HOOKS_HOST)$(BASE_PATH)/resume -o /dev/null -w "  HTTP %{http_code}\n"
-	@echo "→ POST $(BASE_PATH)/suspend"
-	@curl -fsS -X POST $(HOOKS_HOST)$(BASE_PATH)/suspend -o /dev/null -w "  HTTP %{http_code}\n"
-	@echo "→ POST $(BASE_PATH)/terminate"
-	@curl -fsS -X POST $(HOOKS_HOST)$(BASE_PATH)/terminate -o /dev/null -w "  HTTP %{http_code}\n"
+	# @echo "→ POST $(BASE_PATH)/resume"
+	# @curl -fsS -X POST $(HOOKS_HOST)$(BASE_PATH)/resume -o /dev/null -w "  HTTP %{http_code}\n"
+	# @echo "→ POST $(BASE_PATH)/suspend"
+	# @curl -fsS -X POST $(HOOKS_HOST)$(BASE_PATH)/suspend -o /dev/null -w "  HTTP %{http_code}\n"
+	# @echo "→ POST $(BASE_PATH)/terminate"
+	# @curl -fsS -X POST $(HOOKS_HOST)$(BASE_PATH)/terminate -o /dev/null -w "  HTTP %{http_code}\n"
 	@echo "→ POST /execute"
 	@curl -fsS -X POST $(HOST)/execute \
 		-H 'Content-Type: application/json' \

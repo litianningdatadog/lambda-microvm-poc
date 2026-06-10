@@ -34,7 +34,7 @@ ENV DD_SERVICE=sample-java-app
 ENV DD_SOURCE=java
 ENV DD_LOGS_ENABLED=true
 ENV DD_LOGS_INJECTION=true
-ENV DD_SERVERLESS_MICROVM_USER_APP_PORT=8080
+ENV DD_AWS_MICROVM_USER_APP_PORT=8080
 
 ENTRYPOINT ["/serverless-init"]
 CMD ["java", "-javaagent:/dd_tracer/java/dd-java-agent.jar", "-jar", "/app/app.jar"]
