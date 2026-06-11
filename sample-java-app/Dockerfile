@@ -23,7 +23,7 @@ RUN dnf install -y java-21-amazon-corretto-devel \
 COPY --from=build /build/target/app.jar /app/app.jar
 RUN mkdir -p /dd_tracer/java
 #curl -L https://dtdg.co/latest-java-tracer -o /dd_tracer/java/dd-java-agent.jar
-COPY dd-java-agent-1.56.0-SNAPSHOT.jar /dd_tracer/java/dd-java-agent.jar
+COPY dd-java-agent-1.64.0-SNAPSHOT.jar /dd_tracer/java/dd-java-agent.jar
 
 COPY serverless-init-linux-arm64 /serverless-init
 RUN chmod +x /serverless-init
