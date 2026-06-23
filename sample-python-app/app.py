@@ -6,12 +6,12 @@ Uses only the Python standard library (no external dependencies).
 
 Endpoints:
 - GET  /health
-- POST /aws/lambda-microvms/runtime/beta/v1/ready
-- POST /aws/lambda-microvms/runtime/beta/v1/validate
-- POST /aws/lambda-microvms/runtime/beta/v1/launch
-- POST /aws/lambda-microvms/runtime/beta/v1/resume
-- POST /aws/lambda-microvms/runtime/beta/v1/suspend
-- POST /aws/lambda-microvms/runtime/beta/v1/terminate
+- POST /aws/lambda-microvms/runtime/v1/ready
+- POST /aws/lambda-microvms/runtime/v1/validate
+- POST /aws/lambda-microvms/runtime/v1/run
+- POST /aws/lambda-microvms/runtime/v1/resume
+- POST /aws/lambda-microvms/runtime/v1/suspend
+- POST /aws/lambda-microvms/runtime/v1/terminate
 - POST /execute
 """
 
@@ -33,7 +33,7 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [sample-python-app] %(message)s')
 logger = logging.getLogger(__name__)
 
-BASE_PATH = "/aws/lambda-microvms/runtime/beta/v1"
+BASE_PATH = "/aws/lambda-microvms/runtime/v1"
 VALIDATE_PATH = f"{BASE_PATH}/validate"
 PORT = 8080
 
@@ -96,11 +96,11 @@ class Handler(BaseHTTPRequestHandler):
                 logger.info(f"Ready hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
                 _send_empty(self)
 
-            elif self.path == f"{BASE_PATH}/launch":
+            elif self.path == f"{BASE_PATH}/run":
                 data = _read_json_body(self)
                 micro_vm_id = data.get("microVmId")
                 mesh_ipv6_address = data.get("meshIpv6Address")
-                logger.info(f"Launch hook called — ts={_now_ts()}, microVmId={micro_vm_id}, meshIpv6Address={mesh_ipv6_address}")
+                logger.info(f"Run hook called — ts={_now_ts()}, microVmId={micro_vm_id}, meshIpv6Address={mesh_ipv6_address}")
                 _send_empty(self)
 
             elif self.path == f"{BASE_PATH}/resume":
@@ -171,7 +171,7 @@ Sample commands (server running on port {PORT}):
 
   curl -X POST http://127.0.0.1:{PORT}{BASE_PATH}/ready
 
-  curl -X POST http://127.0.0.1:{PORT}{BASE_PATH}/launch \\
+  curl -X POST http://127.0.0.1:{PORT}{BASE_PATH}/run \\
     -H 'Content-Type: application/json' \\
     -d '{{"microVmId": "hello_world", "meshIpv6Address": "::1"}}'
 

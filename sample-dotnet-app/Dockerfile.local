@@ -8,7 +8,7 @@ RUN dotnet restore
 COPY Program.cs .
 RUN dotnet publish -c Release -o /out
 
-FROM --platform=linux/arm64 public.ecr.aws/amazonlinux/amazonlinux:2023
+FROM --platform=linux/arm64 public.ecr.aws/lambda/microvms:al2023-minimal
 
 WORKDIR /app
 

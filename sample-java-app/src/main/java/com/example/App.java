@@ -29,7 +29,7 @@ import java.util.TreeMap;
  */
 public final class App {
 
-    private static final String BASE_PATH = "/aws/lambda-microvms/runtime/beta/v1";
+    private static final String BASE_PATH = "/aws/lambda-microvms/runtime/v1";
     private static final int PORT = 8080;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -46,7 +46,7 @@ public final class App {
         server.createContext("/health", App::handleHealth);
         server.createContext(BASE_PATH + "/validate", App::handleValidate);
         server.createContext(BASE_PATH + "/ready", App::handleReady);
-        server.createContext(BASE_PATH + "/launch", App::handleLaunch);
+        server.createContext(BASE_PATH + "/run", App::handleRun);
         server.createContext(BASE_PATH + "/resume", App::handleResume);
         server.createContext(BASE_PATH + "/suspend", App::handleSuspend);
         server.createContext(BASE_PATH + "/terminate", App::handleTerminate);
@@ -77,13 +77,13 @@ public final class App {
         exchange.close();
     }
 
-    @Trace(operationName = "http.server.request", resourceName = "POST /launch")
-    private static void handleLaunch(HttpExchange exchange) throws IOException {
+    @Trace(operationName = "http.server.request", resourceName = "POST /run")
+    private static void handleRun(HttpExchange exchange) throws IOException {
         byte[] raw = exchange.getRequestBody().readAllBytes();
         JsonNode data = raw.length == 0 ? MAPPER.createObjectNode() : MAPPER.readTree(raw);
         microVmId = data.path("microVmId").asText(null);
         String meshIpv6 = data.path("meshIpv6Address").asText(null);
-        log("Launch hook called — ts=" + nowTs() + ", microVmId=" + microVmId
+        log("Run hook called — ts=" + nowTs() + ", microVmId=" + microVmId
                 + ", meshIpv6Address=" + meshIpv6);
         exchange.sendResponseHeaders(200, -1);
         exchange.close();
@@ -195,7 +195,7 @@ public final class App {
 
                   curl -X POST http://127.0.0.1:%d%s/ready
 
-                  curl -X POST http://127.0.0.1:%d%s/launch \\
+                  curl -X POST http://127.0.0.1:%d%s/run \\
                     -H 'Content-Type: application/json' \\
                     -d '{"microVmId": "hello_world", "meshIpv6Address": "::1"}'
 

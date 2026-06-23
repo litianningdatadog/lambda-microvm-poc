@@ -149,12 +149,27 @@ Build logs stream to CloudWatch under `/aws/lambda/microvms/<image-name>`.
 awsv aws lambda-microvms launch-micro-vm \
   --micro-vm-image-arn arn:aws:lambda:us-east-2:425362996713:microvm-image:simple-python-repl-app-2 \
   --micro-vm-image-version 1.0 \
-  --ingress-network-connectors "arn:aws:lambda:::network-connector:aws-network-connector:ALL_INGRESS" \
-  --egress-network-connectors "arn:aws:lambda:::network-connector:aws-network-connector:INTERNET_EGRESS" \
+  --ingress-network-connectors "arn:aws:lambda:us-east-2:aws:network-connector:aws-network-connector:HTTP_INGRESS" \
+  --egress-network-connectors "arn:aws:lambda:us-east-2:aws:network-connector:aws-network-connector:INTERNET_EGRESS" \
   --idle-policy autoResumeEnabled=true,maxIdleDurationSeconds=900,suspendedDurationSeconds=300 \
   --region us-east-2 \
   --endpoint https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev
 ```
+
+**Network connectors are optional (GA).** With no `--ingress-network-connectors`
+/ `--egress-network-connectors`, the service defaults to `HTTP_INGRESS` +
+`INTERNET_EGRESS` — all an HTTP app needs. Per-port access is governed by the
+auth token's `--allowed-ports`, *not* by ingress connectors. Omit them unless
+you need **shell access** (attach `SHELL_INGRESS` alongside `HTTP_INGRESS`) or
+**VPC egress** (a `VPC_EGRESS` connector). `./deploy-microvm.sh` only passes
+connectors when `SHELL_ENABLED=true`.
+
+When you do pass connector ARNs, they are fully-qualified as
+`arn:aws:lambda:<region>:aws:network-connector:aws-network-connector:<NAME>`
+(region in the region slot, literal `aws` in the account slot — AWS-managed
+connectors). The old preview `arn:aws:lambda:::network-connector:…` form is
+rejected, and `ALL_INGRESS` is **exclusive** (cannot be combined with any other
+ingress connector). `HTTP_INGRESS` covers HTTP/HTTP2 (incl. gRPC).
 
 Resources per MicroVM: up to 4 vCPUs / 8 GB memory / 32 GB disk.
 
@@ -170,29 +185,41 @@ awsv aws lambda-microvms generate-micro-vm-auth-token \
 
 ### 4. Connect to a MicroVM
 
-**Proxy endpoint:** `https://cell01.us-east-2.gamma.arp.kepler-analytics.aws.dev`
+**Proxy endpoint (GA):** there is **no fixed proxy host**. Each MicroVM has its
+own data-plane endpoint, returned in the `endpoint` field of `run-microvm` /
+`get-microvm`, with the pattern `<uuid>.lambda-microvm-gamma.<region>.on.aws`.
+The old preview `cell01.<region>.gamma.arp.kepler-analytics.aws.dev` host no
+longer resolves. (`./deploy-microvm.sh` captures this into `MICROVM_ENDPOINT`
+in the generated `.microvm-token.*` file.)
+
+```bash
+# Fetch the endpoint for a running MicroVM:
+awsv aws lambda-microvms get-microvm --microvm-identifier <MICROVM_ID> \
+  --region us-east-2 --endpoint https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev \
+  --query 'endpoint' --output text
+```
 
 Pass auth via headers:
 - `X-aws-proxy-auth: <token>` — required
 - `X-aws-proxy-port: <port>` — optional, defaults to routing 443 → 8080
 
 ```bash
-curl 'https://cell01.us-east-2.gamma.arp.kepler-analytics.aws.dev' \
-  -H 'X-aws-proxy-auth: <TOKEN>' \
-  -H 'X-aws-proxy-port: <PORT>'
+curl "https://$MICROVM_ENDPOINT/" \
+  -H "X-aws-proxy-auth: $MICROVM_TOKEN" \
+  -H "X-aws-proxy-port: $APP_PORT"
 ```
 
-For [simple-python-repl-app-2](https://us-east-2.console.aws.amazon.com/lambda/home?region=us-east-2#/microvm-images) function 
+For a REPL-style `/execute` endpoint:
 ```bash
-curl -X POST 'https://cell01.us-east-2.gamma.arp.kepler-analytics.aws.dev/execute' \
+curl -X POST "https://$MICROVM_ENDPOINT/execute" \
   -d '{"code": "print(100000+1)"}' \
   -H "Content-Type: application/json" \
-  -H 'X-aws-proxy-auth: <TOKEN>'
+  -H "X-aws-proxy-auth: $MICROVM_TOKEN"
 ```
 
 Attention:
 - Use -X <method> if the method is other than GET
-- Append path to 'https://cell01.us-east-2.gamma.arp.kepler-analytics.aws.dev' if any (see your app)
+- Append your app's path to `https://$MICROVM_ENDPOINT` (see your app)
 
 **Browser WebSockets** — browsers cannot set arbitrary headers on WebSocket connections; use subprotocols instead:
 ```js
@@ -273,19 +300,34 @@ cargo test config::                                  # run a single module's tes
 
 ## Lifecycle Hooks
 
-Implement hooks as HTTP endpoints on port 9000 inside your MicroVM. Full OpenAPI spec is in `lifecycle_hooks_openapi.json`.
+Implement hooks as HTTP endpoints on port 9000 inside your MicroVM. (The
+`lifecycle_hooks_openapi.json` in this repo is the **preview** spec — it still
+lists `launch` and `/beta/v1/` paths; the authoritative GA hook config is in
+`lambdamicrovms-2025-09-09.json` / `lambdamicrovms-ga.api.json`.)
 
-| Hook | Path | Timeout | Purpose |
-|------|------|---------|---------|
-| Ready | `POST /aws/lambda-microvms/runtime/beta/v1/ready` | 60m | Signal app startup complete during image build |
-| Launch | `POST /aws/lambda-microvms/runtime/beta/v1/launch` | 60m | Health checks / reset unique state after launch from snapshot |
-| Suspend | `POST /aws/lambda-microvms/runtime/beta/v1/suspend` | 120s | Clean up connections before suspend |
-| Resume | `POST /aws/lambda-microvms/runtime/beta/v1/resume` | 120s | Recreate connections after in-place resume |
-| Terminate | `POST /aws/lambda-microvms/runtime/beta/v1/terminate` | 60s | Flush data before termination |
+GA renamed `launch` → `run`, added a build-time `validate` hook, and dropped
+`/beta` from the path (now `/aws/lambda-microvms/runtime/v1/<hook>`). Timeouts
+below are the configurable maximums from the GA schema.
+
+**Build-time hooks** (`microvmImageHooks`, invoked during image build):
+
+| Hook | Path | Max timeout | Purpose |
+|------|------|-------------|---------|
+| Validate | `POST /aws/lambda-microvms/runtime/v1/validate` | 3600s | Validate the MicroVM image build |
+| Ready | `POST /aws/lambda-microvms/runtime/v1/ready` | 3600s | Signal app startup complete during image build |
+
+**Runtime hooks** (`microvmHooks`, invoked on a running MicroVM):
+
+| Hook | Path | Max timeout | Purpose |
+|------|------|-------------|---------|
+| Run | `POST /aws/lambda-microvms/runtime/v1/run` | 60s | Health checks / reset unique state after run from snapshot (receives `microVmId`, `meshIpv6Address`) |
+| Resume | `POST /aws/lambda-microvms/runtime/v1/resume` | 60s | Recreate connections after in-place resume |
+| Suspend | `POST /aws/lambda-microvms/runtime/v1/suspend` | 60s | Clean up connections before suspend |
+| Terminate | `POST /aws/lambda-microvms/runtime/v1/terminate` | 60s | Flush data before termination |
 
 ## Snapshot Uniqueness
 
-MicroVM Images are Firecracker snapshots shared across all MicroVMs launched from that image. **Do not generate unique content (IDs, secrets, random seeds) at image build time.** Generate unique content in the `launch` hook or after launch.
+MicroVM Images are Firecracker snapshots shared across all MicroVMs launched from that image. **Do not generate unique content (IDs, secrets, random seeds) at image build time.** Generate unique content in the `run` hook or after launch.
 
 Use CSPRNGs: Java `SecureRandom`, Python `random.SystemRandom`, Node.js `crypto.randomBytes`, .NET `RandomNumberGenerator`, or read from `/dev/urandom`.
 

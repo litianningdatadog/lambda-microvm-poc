@@ -30,7 +30,7 @@ set +x
 #   POLL_INTERVAL    default: 10 (seconds)
 #   POLL_TIMEOUT     default: 1800 (seconds, 30 min)
 #   APP_PORT         default: 8080  (exported at the end; X-aws-proxy-port value)
-#   SHELL_ENABLED    default: true  (operationalConfig.shellEnabled on launch)
+#   SHELL_ENABLED    default: true  (attaches SHELL_INGRESS connector at run time)
 #   EXECUTION_ROLE_ARN   default: the microvm-build-role (confirmed working in
 #                                  prod despite the schema saying the role must
 #                                  trust lambda.amazonaws.com)
@@ -39,11 +39,10 @@ set +x
 # `jq` for parsing the multi-part authToken response. We source ~/.zshrc below
 # to pick up awsv — which is why this script is `#!/usr/bin/env zsh`, not bash.
 #
-# The lambda-microvms service model ships in this repo as
-# `lambdamicrovms-2025-09-09.api.json`. This script registers it with the
-# AWS CLI on every invocation (idempotent), so a fresh clone works
-# without first running the `aws configure add-model` step from
-# CLAUDE.md's "CLI Setup" section.
+# The GA lambda-microvms service model ships in this repo as
+# `lambdamicrovms-ga.api.json` (sourced from botocore). This script registers
+# it with the AWS CLI on every invocation (idempotent), so a fresh clone works
+# without first running the `aws configure add-model` step.
 # =============================================================================
 
 APP_DIR="${1:?Usage: $0 <app-dir>}"
@@ -76,11 +75,11 @@ set -euo pipefail
 # Resolve this script's own directory (independent of the caller's cwd)
 # so we can find the lambda-microvms service model next to it in the repo.
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
-MODEL_FILE="$SCRIPT_DIR/lambdamicrovms-2025-09-09.api.json"
+MODEL_FILE="$SCRIPT_DIR/lambdamicrovms-ga.api.json"
 
 if [[ ! -f "$MODEL_FILE" ]]; then
   print -u2 "ERROR: Service model not found at $MODEL_FILE"
-  print -u2 "       This script expects lambdamicrovms-2025-09-09.api.json to live"
+  print -u2 "       This script expects lambdamicrovms-ga.api.json to live"
   print -u2 "       next to it in the repo root."
   exit 1
 fi
@@ -110,12 +109,10 @@ S3_BUCKET="${S3_BUCKET:-$APP_NAME}"
 #   - '-' separator
 #   - 10-char MMDDHHMMSS timestamp (second-precision, unique within a year)
 IMAGE_NAME="${IMAGE_NAME:-${APP_NAME:0:19}-$(date +%m%d%H%M%S)}"
-BUILD_ROLE_ARN="${BUILD_ROLE_ARN:-arn:aws:iam::425362996713:role/microvm-build-role}"
-BASE_IMAGE_ARN="${BASE_IMAGE_ARN:-arn:aws:lambda:::microvm-image:lambda-microvms-al2023-2}"
 REGION="${REGION:-us-east-2}"
-ENDPOINT="${ENDPOINT:-https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev}"
-INGRESS_CONNECTOR="${INGRESS_CONNECTOR:-arn:aws:lambda:::network-connector:aws-network-connector:ALL_INGRESS}"
-EGRESS_CONNECTOR="${EGRESS_CONNECTOR:-arn:aws:lambda:::network-connector:aws-network-connector:INTERNET_EGRESS}"
+BUILD_ROLE_ARN="${BUILD_ROLE_ARN:-arn:aws:iam::425362996713:role/microvm-build-role}"
+BASE_IMAGE_ARN="${BASE_IMAGE_ARN:-arn:aws:lambda:${REGION}:aws:microvm-image:al2023-1}"
+ENDPOINT="${ENDPOINT:-https://cell01.${REGION}.gamma.fe.kepler-analytics.aws.dev}"
 POLL_INTERVAL="${POLL_INTERVAL:-10}"
 POLL_TIMEOUT="${POLL_TIMEOUT:-1800}"
 # App port inside the MicroVM to route to via the proxy (X-aws-proxy-port
@@ -123,13 +120,11 @@ POLL_TIMEOUT="${POLL_TIMEOUT:-1800}"
 # the user-app port (`EXPOSE 8080` in the sample Dockerfiles). Set to 9000
 # to hit the lifecycle-hook / serverless-init server instead.
 APP_PORT="${APP_PORT:-8080}"
-# Enables `ctr task exec` shell access on the MicroVM host for debugging
-# (see CLAUDE.md "Operating MicroVMs"). This is a launch-time setting —
-# the image snapshot is unaffected, so flipping it only takes effect on
-# the *next* launch. Default on for this preview dev kit; set to false
-# to deploy without shell.
+# Attaches the SHELL_INGRESS network connector at run time, enabling
+# interactive shell access via `create-microvm-shell-auth-token` (GA replaced
+# the old operationalConfig.shellEnabled flag). Default on for this dev kit.
 SHELL_ENABLED="${SHELL_ENABLED:-true}"
-# Role assumed by the MicroVM at runtime (LaunchMicroVMRequest.executionRoleArn).
+# Role assumed by the MicroVM at runtime (RunMicrovmRequest.executionRoleArn).
 # The 2026-03-07 schema says this role "must trust lambda.amazonaws.com", but
 # reusing microvm-build-role has been verified working in prod, so we default
 # to the same ARN as BUILD_ROLE_ARN. Override per-launch via env.
@@ -144,7 +139,10 @@ S3_KEY="$TIMESTAMP.zip"
 S3_URI="s3://$S3_BUCKET/$S3_KEY"
 
 # Shared CLI args so the commands never drift.
-AWS_ARGS=(--region "$REGION" --endpoint "$ENDPOINT")
+# --endpoint points to gamma (pre-production)
+# AWS_ARGS=(--region "$REGION" --endpoint "$ENDPOINT")
+# without --endpoint points to production
+AWS_ARGS=(--region "$REGION")
 
 log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
 
@@ -153,7 +151,7 @@ log "Image name: $IMAGE_NAME   (${#IMAGE_NAME} chars)"
 log "App dir:    $APP_DIR"
 log "Zip path:   $ZIP_PATH"
 log "S3 target:  $S3_URI"
-log "Shell:      shellEnabled=$SHELL_ENABLED"
+log "Shell:      SHELL_INGRESS=$SHELL_ENABLED"
 log "Exec role:  $EXECUTION_ROLE_ARN"
 log "Hooks:      all ENABLED; platform-default timeouts"
 
@@ -177,71 +175,79 @@ awsv aws s3 cp "$ZIP_PATH" "$S3_URI" --region "$REGION"
 # --- 3. Create MicroVM Image ----------------------------------------------
 log "[3/5] Creating MicroVM image '$IMAGE_NAME'"
 
-# Build snapshotConfig JSON with hooks. Timeouts per the developer guide defaults:
-#   ready/launch: 60m, suspend/resume: 120s, terminate: 60s.
-# readyHookTimeoutMilliseconds is set to 60s (per AWS guidance) — gives the user app
-# time to start and respond to the /ready hook before the platform times out.
-#
-# environmentVariables are baked into the snapshot and injected into the container at
-# start — no need to ship a .dd-env file in the zip for these static config values.
-# DD_SERVERLESS_MICROVM_USER_APP_PORT is baked into each sample-app Dockerfile
-# rather than here so it is available at both image-creation time and launch time.
-SNAPSHOT_CONFIG_JSON=$(cat <<EOF
+# Hooks JSON (GA --hooks parameter).
+# microvmImageHooks: ready + validate are build-time; timeouts in seconds.
+# microvmHooks: run/resume/suspend/terminate are runtime; keep them fast (≤60s).
+HOOKS_JSON=$(cat <<'EOF'
 {
-  "hooks": {
-    "lifecycleHookPort": 9000,
-    "readyHook":                    "ENABLED",
-    "readyHookTimeoutMilliseconds": 60000,
-    "validateHook":                 "ENABLED",
-    "validateHookTimeoutMilliseconds": 60000,
-    "launchHook":                   "ENABLED",
-    "resumeHook":                   "ENABLED",
-    "suspendHook":                  "ENABLED",
-    "terminateHook":                "ENABLED"
+  "port": 9000,
+  "microvmImageHooks": {
+    "ready":                   "ENABLED",
+    "readyTimeoutInSeconds":   60,
+    "validate":                "ENABLED",
+    "validateTimeoutInSeconds": 60
   },
-  "environmentVariables": {
-    "DD_SITE":             "datadoghq.com",
-    "DD_VERSION":          "1",
-    "DD_ENV":              "devmicrovm",
-    "DD_LOGS_ENABLED":     "true",
-    "DD_LOG_LEVEL":        "debug",
-    "DD_TRACE_SAMPLE_RATE": "1.0",
-    "DD_LOGS_INJECTION":   "true",
-    "DD_TRACE_ENABLED":    "true",
-    "DD_TRACE_AGENT_URL":  "http://localhost:8126",
-    "DD_TRACE_STARTUP_LOGS": "true",
-    "DD_TRACE_DEBUG":      "true"
+  "microvmHooks": {
+    "run":                     "ENABLED",
+    "runTimeoutInSeconds":     2,
+    "resume":                  "ENABLED",
+    "resumeTimeoutInSeconds":  2,
+    "suspend":                 "ENABLED",
+    "suspendTimeoutInSeconds": 5,
+    "terminate":               "ENABLED",
+    "terminateTimeoutInSeconds": 5
   }
 }
 EOF
 )
+
+# Environment variables baked into the snapshot (separate --environment-variables
+# parameter in GA). DD_AWS_MICROVM_USER_APP_PORT is already in each sample-app
+# Dockerfile, so it doesn't need to be repeated here.
+ENV_VARS_JSON=$(cat <<'EOF'
+{
+  "DD_SITE":              "datadoghq.com",
+  "DD_VERSION":           "1",
+  "DD_ENV":               "devmicrovm",
+  "DD_LOGS_ENABLED":      "true",
+  "DD_LOG_LEVEL":         "debug",
+  "DD_TRACE_SAMPLE_RATE": "1.0",
+  "DD_LOGS_INJECTION":    "true",
+  "DD_TRACE_ENABLED":     "true",
+  "DD_TRACE_AGENT_URL":   "http://localhost:8126",
+  "DD_TRACE_STARTUP_LOGS": "true",
+  "DD_TRACE_DEBUG":       "true"
+}
+EOF
+)
 if [[ -n "${DD_API_KEY:-}" ]]; then
-  SNAPSHOT_CONFIG_JSON=$(printf '%s' "$SNAPSHOT_CONFIG_JSON" | jq --arg v "$DD_API_KEY" '.environmentVariables.DD_API_KEY = $v')
+  ENV_VARS_JSON=$(printf '%s' "$ENV_VARS_JSON" | jq --arg v "$DD_API_KEY" '.DD_API_KEY = $v')
 fi
 
+print $HOOKS_JSON
+print $ENV_VARS_JSON
 
-print $SNAPSHOT_CONFIG_JSON
-
-IMAGE_ARN=$(awsv aws lambda-microvms create-micro-vm-image \
+IMAGE_ARN=$(awsv aws lambda-microvms create-microvm-image \
   --code-artifact "uri=$S3_URI" \
   --name "$IMAGE_NAME" \
-  --base-micro-vm-image-arn "$BASE_IMAGE_ARN" \
+  --base-image-arn "$BASE_IMAGE_ARN" \
   --build-role-arn "$BUILD_ROLE_ARN" \
-  --snapshot-config "$SNAPSHOT_CONFIG_JSON" \
+  --hooks "$HOOKS_JSON" \
+  --environment-variables "$ENV_VARS_JSON" \
   "${AWS_ARGS[@]}" \
-  --query 'microVMImageArn' --output text)
+  --query 'imageArn' --output text)
 log "      image ARN: $IMAGE_ARN"
 
 # --- 4. Poll until CREATED -------------------------------------------------
 log "[4/5] Polling image state (every ${POLL_INTERVAL}s, timeout ${POLL_TIMEOUT}s)"
 start=$(date +%s)
 while :; do
-  state=$(awsv aws lambda-microvms describe-micro-vm-image \
-    --micro-vm-image-arn "$IMAGE_ARN" \
+  state=$(awsv aws lambda-microvms get-microvm-image \
+    --image-identifier "$IMAGE_ARN" \
     "${AWS_ARGS[@]}" \
-    --query 'summary.state' --output text 2>/dev/null) || {
+    --query 'state' --output text 2>/dev/null) || {
     elapsed=$(( $(date +%s) - start ))
-    log "      WARN: describe-micro-vm-image returned an error (transient?); retrying in ${POLL_INTERVAL}s  elapsed=${elapsed}s"
+    log "      WARN: get-microvm-image returned an error (transient?); retrying in ${POLL_INTERVAL}s  elapsed=${elapsed}s"
     sleep "$POLL_INTERVAL"
     continue
   }
@@ -249,10 +255,11 @@ while :; do
   log "      state=$state  elapsed=${elapsed}s"
   case "$state" in
     CREATED) break ;;
-    CREATION_FAILED)
-      reason=$(awsv aws lambda-microvms describe-micro-vm-image \
-        --micro-vm-image-arn "$IMAGE_ARN" "${AWS_ARGS[@]}" \
-        --query 'summary.failureReason' --output text 2>/dev/null || true)
+    FAILED)
+      # Version-level build failure — stateReason carries the error code.
+      reason=$(awsv aws lambda-microvms get-microvm-image \
+        --image-identifier "$IMAGE_ARN" "${AWS_ARGS[@]}" \
+        --query 'stateReason' --output text 2>/dev/null || true)
       log "ERROR: image build failed: ${reason:-<no reason returned>}"
       log "      build logs: CloudWatch /aws/lambda-microvms/$IMAGE_NAME"
       exit 1
@@ -268,46 +275,54 @@ while :; do
 done
 log "      image ready."
 
-# --- 5. Launch MicroVM -----------------------------------------------------
-log "[5/6] Launching MicroVM"
-MICROVM_ID=""
-launch_attempt=0
-while [[ -z "$MICROVM_ID" ]]; do
-  launch_attempt=$(( launch_attempt + 1 ))
-  if (( launch_attempt > 3 )); then
-    log "ERROR: launch-micro-vm failed after 3 attempts — giving up"
-    exit 1
-  fi
-  MICROVM_ID=$(awsv aws lambda-microvms launch-micro-vm \
-    --micro-vm-image-arn "$IMAGE_ARN" \
-    --micro-vm-image-version 1.0 \
-    --execution-role-arn "$EXECUTION_ROLE_ARN" \
-    --ingress-network-connectors "$INGRESS_CONNECTOR" \
-    --egress-network-connectors "$EGRESS_CONNECTOR" \
-    --idle-policy autoResumeEnabled=true,maxIdleDurationSeconds=900,suspendedDurationSeconds=300 \
-    --operational-config "shellEnabled=$SHELL_ENABLED" \
-    "${AWS_ARGS[@]}" \
-    --query 'microVMId' --output text 2>/dev/null) || {
-    log "      WARN: launch-micro-vm returned an error (attempt $launch_attempt/3), retrying in 10s..."
-    sleep 10
-    continue
-  }
-done
-log "      microVMId: $MICROVM_ID"
+# --- 5. Run MicroVM --------------------------------------------------------
+log "[5/6] Running MicroVM"
+# Network connectors are only needed for shell access. Without any connectors
+# the service defaults to HTTP_INGRESS + INTERNET_EGRESS (verified) — all an
+# HTTP app needs — and per-port access is governed by the auth token's
+# --allowed-ports, not by ingress connectors. For shell access we attach
+# SHELL_INGRESS, and must name the app's HTTP_INGRESS alongside it.
+connector_args=()
+if [[ "${SHELL_ENABLED:-true}" == "true" ]]; then
+  connector_args=(
+    --ingress-network-connectors "[\"arn:aws:lambda:${REGION}:aws:network-connector:aws-network-connector:HTTP_INGRESS\",\"arn:aws:lambda:${REGION}:aws:network-connector:aws-network-connector:SHELL_INGRESS\"]"
+    --egress-network-connectors  "[\"arn:aws:lambda:${REGION}:aws:network-connector:aws-network-connector:INTERNET_EGRESS\"]"
+  )
+fi
+
+# run-microvm returns the microvmId AND the per-MicroVM data-plane endpoint in
+# one response — no follow-up get-microvm needed. The endpoint is the host to
+# curl / open WebSockets against (pattern
+# <uuid>.lambda-microvm-gamma.<region>.on.aws), not the control-plane.
+# Run errors (ValidationException / AccessDenied / ResourceNotFound) are
+# deterministic, so on failure the CLI prints the real error to stderr and we
+# exit rather than retrying.
+RUN_JSON=$(awsv aws lambda-microvms run-microvm \
+  --image-identifier "$IMAGE_ARN" \
+  --image-version 1.0 \
+  --execution-role-arn "$EXECUTION_ROLE_ARN" \
+  "${connector_args[@]}" \
+  --idle-policy '{"autoResumeEnabled":true,"maxIdleDurationSeconds":900,"suspendedDurationSeconds":300}' \
+  "${AWS_ARGS[@]}" \
+  --output json) || {
+  log "ERROR: run-microvm failed (see error above)"
+  exit 1
+}
+MICROVM_ID=$(print -r -- "$RUN_JSON"       | jq -r '.microvmId')
+MICROVM_ENDPOINT=$(print -r -- "$RUN_JSON" | jq -r '.endpoint')
+log "      microvmId: $MICROVM_ID"
+log "      endpoint:  $MICROVM_ENDPOINT"
 
 # --- 6. Generate auth token and save sourceable env-var file ---------------
 log "[6/6] Generating auth token (30-min expiry)"
-# authToken is a map<String,String> (TokenParts in the schema). One API call;
-# we extract both the full map (for file reference) and a scalar (for the
-# MICROVM_TOKEN export). If your token happens to have multiple parts, the
-# full map is dumped as a comment in the token file so you can override.
-AUTH_JSON=$(awsv aws lambda-microvms generate-micro-vm-auth-token \
-  --micro-vm-id "$MICROVM_ID" \
-  --expiration-minutes 30 \
+# authToken is a map (TokenParts); the proxy wants the X-aws-proxy-auth part.
+# Pull it directly with the CLI's --query rather than post-processing JSON.
+MICROVM_TOKEN=$(awsv aws lambda-microvms create-microvm-auth-token \
+  --microvm-identifier "$MICROVM_ID" \
+  --expiration-in-minutes 30 \
+  --allowed-ports '[{"port":'"$APP_PORT"'}]' \
   "${AWS_ARGS[@]}" \
-  --output json)
-AUTH_TOKEN_MAP=$(print -r -- "$AUTH_JSON" | jq -c '.authToken')
-MICROVM_TOKEN=$(print -r -- "$AUTH_JSON"   | jq -r '.authToken | to_entries | .[0].value')
+  --query 'authToken."X-aws-proxy-auth"' --output text)
 
 # Sourceable file. `umask 077` before creation + `chmod 600` after = owner-only
 # readable. The token is a short-lived secret; don't leave it world-readable.
@@ -316,16 +331,16 @@ umask 077
 {
   printf '# Generated by deploy-microvm.sh on %s\n' "$(date)"
   printf '# Image: %s   MicroVM: %s\n' "$IMAGE_NAME" "$MICROVM_ID"
-  printf '# Full authToken payload (for reference): %s\n' "$AUTH_TOKEN_MAP"
-  printf 'export MICROVM_ID=%q\n'    "$MICROVM_ID"
-  printf 'export MICROVM_TOKEN=%q\n' "$MICROVM_TOKEN"
-  printf 'export APP_PORT=%q\n'     "$APP_PORT"
+  printf 'export MICROVM_ID=%q\n'       "$MICROVM_ID"
+  printf 'export MICROVM_TOKEN=%q\n'    "$MICROVM_TOKEN"
+  printf 'export MICROVM_ENDPOINT=%q\n' "$MICROVM_ENDPOINT"
+  printf 'export APP_PORT=%q\n'         "$APP_PORT"
 } > "$TOKEN_FILE"
 chmod 600 "$TOKEN_FILE"
 
 log ""
 log "Done."
-log "  microVMId:     $MICROVM_ID"
+log "  microvmId:     $MICROVM_ID"
 log "  MICROVM_TOKEN: ${MICROVM_TOKEN:0:8}…   (30-min expiry; full value in $TOKEN_FILE)"
 log "  APP_PORT:  $APP_PORT"
 log ""
@@ -333,4 +348,4 @@ log "Load env vars into your current shell:"
 log "  source $TOKEN_FILE"
 log ""
 log "Or test the MicroVM with curl:"
-log "curl -H \"X-aws-proxy-auth: \$MICROVM_TOKEN\" -H \"X-aws-proxy-port: \$APP_PORT\" https://cell01.us-east-2.gamma.arp.kepler-analytics.aws.dev/"
+log "curl -H \"X-aws-proxy-auth: \$MICROVM_TOKEN\" -H \"X-aws-proxy-port: \$APP_PORT\" https://\$MICROVM_ENDPOINT/health"

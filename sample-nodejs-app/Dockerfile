@@ -1,4 +1,4 @@
-FROM --platform=linux/arm64 public.ecr.aws/amazonlinux/amazonlinux:2023
+FROM --platform=linux/arm64 public.ecr.aws/lambda/microvms:al2023-minimal
 
 WORKDIR /app
 

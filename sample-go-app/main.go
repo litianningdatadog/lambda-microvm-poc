@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	basePath = "/aws/lambda-microvms/runtime/beta/v1"
+	basePath = "/aws/lambda-microvms/runtime/v1"
 	port     = 8080
 )
 
@@ -33,7 +33,7 @@ var (
 	microVmID   string
 )
 
-type launchRequest struct {
+type runRequest struct {
 	MicroVmID       string `json:"microVmId"`
 	MeshIpv6Address string `json:"meshIpv6Address"`
 }
@@ -53,7 +53,7 @@ func main() {
 	mux.HandleFunc("/health", health)
 	mux.HandleFunc(basePath+"/validate", emptyHook("Validate"))
 	mux.HandleFunc(basePath+"/ready", emptyHook("Ready"))
-	mux.HandleFunc(basePath+"/launch", launch)
+	mux.HandleFunc(basePath+"/run", launch)
 	mux.HandleFunc(basePath+"/resume", emptyHook("Resume"))
 	mux.HandleFunc(basePath+"/suspend", emptyHook("Suspend"))
 	mux.HandleFunc(basePath+"/terminate", emptyHook("Terminate"))
@@ -78,13 +78,13 @@ func emptyHook(name string) http.HandlerFunc {
 	}
 }
 
-func launch(w http.ResponseWriter, r *http.Request) {
-	var req launchRequest
+func run(w http.ResponseWriter, r *http.Request) {
+	var req runRequest
 	_ = json.NewDecoder(r.Body).Decode(&req)
 	microVmIDMu.Lock()
 	microVmID = req.MicroVmID
 	microVmIDMu.Unlock()
-	logf("Launch hook called — ts=%s, microVmId=%s, meshIpv6Address=%s",
+	logf("Run hook called — ts=%s, microVmId=%s, meshIpv6Address=%s",
 		nowTs(), req.MicroVmID, req.MeshIpv6Address)
 	w.WriteHeader(http.StatusOK)
 }
@@ -162,7 +162,7 @@ Sample commands (server running on port %d):
 
   curl -X POST http://127.0.0.1:%d%s/ready
 
-  curl -X POST http://127.0.0.1:%d%s/launch \
+  curl -X POST http://127.0.0.1:%d%s/run \
     -H 'Content-Type: application/json' \
     -d '{"microVmId": "hello_world", "meshIpv6Address": "::1"}'
 

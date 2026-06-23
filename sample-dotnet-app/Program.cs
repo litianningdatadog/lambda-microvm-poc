@@ -7,7 +7,7 @@
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 
-const string BasePath = "/aws/lambda-microvms/runtime/beta/v1";
+const string BasePath = "/aws/lambda-microvms/runtime/v1";
 const int Port = 8080;
 
 string? microVmId = null;
@@ -39,11 +39,11 @@ app.MapPost($"{BasePath}/ready", () =>
     return Results.Ok();
 });
 
-app.MapPost($"{BasePath}/launch", async (HttpRequest req) =>
+app.MapPost($"{BasePath}/run", async (HttpRequest req) =>
 {
-    var data = await req.ReadFromJsonAsync<LaunchRequest>() ?? new LaunchRequest();
+    var data = await req.ReadFromJsonAsync<RunRequest>() ?? new RunRequest();
     microVmId = data.MicroVmId;
-    Log($"Launch hook called — ts={NowTs()}, microVmId={microVmId}, meshIpv6Address={data.MeshIpv6Address}");
+    Log($"Run hook called — ts={NowTs()}, microVmId={microVmId}, meshIpv6Address={data.MeshIpv6Address}");
     return Results.Ok();
 });
 
@@ -128,7 +128,7 @@ Sample commands (server running on port {Port}):
 
   curl -X POST http://127.0.0.1:{Port}{BasePath}/ready
 
-  curl -X POST http://127.0.0.1:{Port}{BasePath}/launch \
+  curl -X POST http://127.0.0.1:{Port}{BasePath}/run \
     -H 'Content-Type: application/json' \
     -d '{{""microVmId"": ""hello_world"", ""meshIpv6Address"": ""::1""}}'
 
@@ -142,5 +142,5 @@ Sample commands (server running on port {Port}):
 ");
 }
 
-public record LaunchRequest(string? MicroVmId = null, string? MeshIpv6Address = null);
+public record RunRequest(string? MicroVmId = null, string? MeshIpv6Address = null);
 public record ExecuteRequest(string? Code = null);

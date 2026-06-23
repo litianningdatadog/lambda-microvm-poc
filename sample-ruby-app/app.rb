@@ -7,11 +7,11 @@
 #
 # Endpoints:
 # - GET  /health
-# - POST /aws/lambda-microvms/runtime/beta/v1/ready
-# - POST /aws/lambda-microvms/runtime/beta/v1/launch
-# - POST /aws/lambda-microvms/runtime/beta/v1/resume
-# - POST /aws/lambda-microvms/runtime/beta/v1/suspend
-# - POST /aws/lambda-microvms/runtime/beta/v1/terminate
+# - POST /aws/lambda-microvms/runtime/v1/ready
+# - POST /aws/lambda-microvms/runtime/v1/run
+# - POST /aws/lambda-microvms/runtime/v1/resume
+# - POST /aws/lambda-microvms/runtime/v1/suspend
+# - POST /aws/lambda-microvms/runtime/v1/terminate
 # - POST /execute
 
 require 'json'
@@ -26,7 +26,7 @@ rescue LoadError
   DD_TRACER = nil
 end
 
-BASE_PATH = '/aws/lambda-microvms/runtime/beta/v1'
+BASE_PATH = '/aws/lambda-microvms/runtime/v1'
 PORT = 8080
 
 $micro_vm_id = nil
@@ -142,13 +142,13 @@ server.mount_proc("#{BASE_PATH}/ready") do |req, res|
   end
 end
 
-server.mount_proc("#{BASE_PATH}/launch") do |req, res|
-  with_span('POST', "#{BASE_PATH}/launch") do
+server.mount_proc("#{BASE_PATH}/run") do |req, res|
+  with_span('POST', "#{BASE_PATH}/run") do
     if req.request_method == 'POST'
       data = req.body ? JSON.parse(req.body) : {}
       $micro_vm_id = data['microVmId']
       mesh = data['meshIpv6Address']
-      LOGGER.info("Launch hook called — ts=#{now_ts}, microVmId=#{$micro_vm_id}, meshIpv6Address=#{mesh}")
+      LOGGER.info("Run hook called — ts=#{now_ts}, microVmId=#{$micro_vm_id}, meshIpv6Address=#{mesh}")
       send_empty(res)
     else
       send_empty(res, 404)
@@ -211,7 +211,7 @@ puts <<~HELP
 
     curl -X POST http://127.0.0.1:#{PORT}#{BASE_PATH}/ready
 
-    curl -X POST http://127.0.0.1:#{PORT}#{BASE_PATH}/launch \\
+    curl -X POST http://127.0.0.1:#{PORT}#{BASE_PATH}/run \\
       -H 'Content-Type: application/json' \\
       -d '{"microVmId": "hello_world", "meshIpv6Address": "::1"}'
 

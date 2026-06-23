@@ -6,12 +6,12 @@ This application listens on port 9000 and implements ready, launch, resume,
 suspend, and terminate hooks.
 
 Endpoints:
-- POST /aws/lambda-microvms/runtime/beta/v1/validate
-- POST /aws/lambda-microvms/runtime/beta/v1/ready
-- POST /aws/lambda-microvms/runtime/beta/v1/launch
-- POST /aws/lambda-microvms/runtime/beta/v1/resume
-- POST /aws/lambda-microvms/runtime/beta/v1/suspend
-- POST /aws/lambda-microvms/runtime/beta/v1/terminate
+- POST /aws/lambda-microvms/runtime/v1/validate
+- POST /aws/lambda-microvms/runtime/v1/ready
+- POST /aws/lambda-microvms/runtime/v1/run
+- POST /aws/lambda-microvms/runtime/v1/resume
+- POST /aws/lambda-microvms/runtime/v1/suspend
+- POST /aws/lambda-microvms/runtime/v1/terminate
 """
 
 import logging
@@ -30,7 +30,7 @@ def _now_ts():
     return datetime.now(timezone.utc).isoformat()
 
 
-BASE_PATH = "/aws/lambda-microvms/runtime/beta/v1"
+BASE_PATH = "/aws/lambda-microvms/runtime/v1"
 PORT = 8080
 
 app = Flask(__name__)
@@ -59,8 +59,8 @@ def ready():
     return "", 200
 
 
-@app.route(f"{BASE_PATH}/launch", methods=["POST"])
-def launch():
+@app.route(f"{BASE_PATH}/run", methods=["POST"])
+def run():
     """Handle launch hook from Lambda MicroVMs (CLONED resume type)."""
     global micro_vm_id
     data = request.get_json() or {}
@@ -68,7 +68,7 @@ def launch():
     micro_vm_id = data.get("microVmId")
     mesh_ipv6_address = data.get("meshIpv6Address")
 
-    logger.info(f"Launch hook called — ts={_now_ts()}, microVmId={micro_vm_id}, meshIpv6Address={mesh_ipv6_address}")
+    logger.info(f"Run hook called — ts={_now_ts()}, microVmId={micro_vm_id}, meshIpv6Address={mesh_ipv6_address}")
 
     return "", 200
 
@@ -162,7 +162,7 @@ Sample commands (server running on port {PORT}):
 
   curl -X POST http://127.0.0.1:{PORT}{BASE_PATH}/ready
 
-  curl -X POST http://127.0.0.1:{PORT}{BASE_PATH}/launch \\
+  curl -X POST http://127.0.0.1:{PORT}{BASE_PATH}/run \\
     -H 'Content-Type: application/json' \\
     -d '{{"microVmId": "hello_world", "meshIpv6Address": "::1"}}'
 

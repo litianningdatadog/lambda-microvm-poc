@@ -1,6 +1,6 @@
 IMAGE     := sample-flask-app
 PORT      := 8080
-BASE_PATH := /aws/lambda-microvms/runtime/beta/v1
+BASE_PATH := /aws/lambda-microvms/runtime/v1
 HOST      := http://localhost:$(PORT)
 
 .PHONY: build run check
@@ -18,8 +18,8 @@ check:
 	@curl -fsS $(HOST)/health && echo
 	@echo "→ POST $(BASE_PATH)/ready"
 	@curl -fsS -X POST $(HOST)$(BASE_PATH)/ready -o /dev/null -w "  HTTP %{http_code}\n"
-	@echo "→ POST $(BASE_PATH)/launch"
-	@curl -fsS -X POST $(HOST)$(BASE_PATH)/launch \
+	@echo "→ POST $(BASE_PATH)/run"
+	@curl -fsS -X POST $(HOST)$(BASE_PATH)/run \
 		-H 'Content-Type: application/json' \
 		-d '{"microVmId":"vm-local","meshIpv6Address":"::1"}' \
 		-o /dev/null -w "  HTTP %{http_code}\n"

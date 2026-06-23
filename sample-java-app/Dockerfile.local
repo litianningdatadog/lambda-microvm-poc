@@ -1,4 +1,4 @@
-FROM --platform=linux/arm64 public.ecr.aws/amazonlinux/amazonlinux:2023 AS build
+FROM --platform=linux/arm64 public.ecr.aws/lambda/microvms:al2023-minimal AS build
 
 WORKDIR /build
 
@@ -10,7 +10,7 @@ COPY pom.xml .
 COPY src ./src
 RUN mvn -B -q package -DskipTests
 
-FROM --platform=linux/arm64 public.ecr.aws/amazonlinux/amazonlinux:2023
+FROM --platform=linux/arm64 public.ecr.aws/lambda/microvms:al2023-minimal
 
 WORKDIR /app
 

@@ -1,19 +1,18 @@
-FROM --platform=linux/arm64 ubuntu:24.04
+FROM --platform=linux/arm64 public.ecr.aws/lambda/microvms:al2023-minimal
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.12 \
-    python3-pip \
-    lsof net-tools procps htop iproute2 iputils-ping \
-    vim nano wget unzip file curl \
-    && rm -rf /var/lib/apt/lists/*
+RUN dnf install -y \
+    python3.12 python3.12-pip \
+    lsof net-tools procps-ng htop iproute iputils \
+    vim-enhanced nano wget unzip file curl \
+    && dnf clean all
 
 COPY requirements.txt .
-RUN python3.12 -m pip install --no-cache-dir --break-system-packages -r requirements.txt
+RUN python3.12 -m pip install --no-cache-dir -r requirements.txt
 ARG DD_TRACE_WHEEL=ddtrace-4.9.0rc2-cp312-cp312-linux_aarch64.whl
 COPY ${DD_TRACE_WHEEL} /tmp/${DD_TRACE_WHEEL}
-RUN python3.12 -m pip install --target /dd_tracer/python/ --no-cache-dir --break-system-packages /tmp/${DD_TRACE_WHEEL} \
+RUN python3.12 -m pip install --target /dd_tracer/python/ --no-cache-dir /tmp/${DD_TRACE_WHEEL} \
     && rm -f /tmp/${DD_TRACE_WHEEL}
 
 COPY app.py .

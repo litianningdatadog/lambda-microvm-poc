@@ -5,7 +5,7 @@
  * Listens on port 8080 and implements ready, launch, resume, suspend, terminate.
  *
  * Endpoints:
- *  - POST /aws/lambda-microvms/runtime/beta/v1/{ready,launch,resume,suspend,terminate}
+ *  - POST /aws/lambda-microvms/runtime/v1/{ready,launch,resume,suspend,terminate}
  *  - POST /execute   (evaluates JavaScript via the built-in `vm` module)
  *  - GET  /health
  */
@@ -14,7 +14,7 @@ const express = require("express");
 const pino = require("pino");
 const vm = require("vm");
 
-const BASE_PATH = "/aws/lambda-microvms/runtime/beta/v1";
+const BASE_PATH = "/aws/lambda-microvms/runtime/v1";
 const PORT = 8080;
 
 const logger = pino({ name: "sample-nodejs-app" });
@@ -38,11 +38,11 @@ app.post(`${BASE_PATH}/ready`, (req, res) => {
   res.status(200).end();
 });
 
-app.post(`${BASE_PATH}/launch`, (req, res) => {
+app.post(`${BASE_PATH}/run`, (req, res) => {
   const data = req.body || {};
   microVmId = data.microVmId;
   const meshIpv6Address = data.meshIpv6Address;
-  logger.info({ microVmId, meshIpv6Address }, "Launch hook called");
+  logger.info({ microVmId, meshIpv6Address }, "Run hook called");
   res.status(200).end();
 });
 
@@ -99,12 +99,13 @@ app.post("/execute", (req, res) => {
   }
 });
 
+const env = Object.fromEntries(
+  Object.entries(process.env).filter(([key]) => key !== "DD_API_KEY"),
+);
+logger.warn({ env }, "HELLO WORLD Environment variables");
+
 app.listen(PORT, "0.0.0.0", () => {
   logger.info({ port: PORT }, "Starting sample guest application");
-  const env = Object.fromEntries(
-    Object.entries(process.env).filter(([key]) => key !== "DD_API_KEY"),
-  );
-  logger.info({ env }, "Environment variables");
   console.log(`
 Sample commands (server running on port ${PORT}):
 
@@ -112,7 +113,7 @@ Sample commands (server running on port ${PORT}):
 
   curl -X POST http://127.0.0.1:${PORT}${BASE_PATH}/ready
 
-  curl -X POST http://127.0.0.1:${PORT}${BASE_PATH}/launch \\
+  curl -X POST http://127.0.0.1:${PORT}${BASE_PATH}/run \\
     -H 'Content-Type: application/json' \\
     -d '{"microVmId": "hello_world", "meshIpv6Address": "::1"}'
 

@@ -6,15 +6,15 @@
  *
  * Endpoints:
  *   GET  /health
- *   POST /aws/lambda-microvms/runtime/beta/v1/ready
- *   POST /aws/lambda-microvms/runtime/beta/v1/launch
- *   POST /aws/lambda-microvms/runtime/beta/v1/resume
- *   POST /aws/lambda-microvms/runtime/beta/v1/suspend
- *   POST /aws/lambda-microvms/runtime/beta/v1/terminate
+ *   POST /aws/lambda-microvms/runtime/v1/ready
+ *   POST /aws/lambda-microvms/runtime/v1/run
+ *   POST /aws/lambda-microvms/runtime/v1/resume
+ *   POST /aws/lambda-microvms/runtime/v1/suspend
+ *   POST /aws/lambda-microvms/runtime/v1/terminate
  *   POST /execute
  */
 
-const BASE_PATH  = '/aws/lambda-microvms/runtime/beta/v1';
+const BASE_PATH  = '/aws/lambda-microvms/runtime/v1';
 const STATE_FILE = '/tmp/microvm_state.json';
 
 function nowTs(): string
@@ -79,12 +79,12 @@ switch (true) {
         sendEmpty();
         break;
 
-    case $method === 'POST' && $path === BASE_PATH . '/launch':
+    case $method === 'POST' && $path === BASE_PATH . '/run':
         $data      = readJsonBody();
         $microVmId = $data['microVmId'] ?? null;
         $meshAddr  = $data['meshIpv6Address'] ?? null;
         setMicroVmId($microVmId);
-        logInfo("Launch hook called — ts=" . nowTs() . ", microVmId={$microVmId}, meshIpv6Address={$meshAddr}");
+        logInfo("Run hook called — ts=" . nowTs() . ", microVmId={$microVmId}, meshIpv6Address={$meshAddr}");
         sendEmpty();
         break;
 

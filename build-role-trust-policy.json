@@ -10,6 +10,21 @@
         "sts:AssumeRole",
         "sts:TagSession"
       ]
+    },
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "lambda.amazonaws.com"
+      },
+      "Action": [
+        "sts:AssumeRole",
+        "sts:TagSession"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:SourceAccount": "425362996713"
+        }
+      }
     }
   ]
 }

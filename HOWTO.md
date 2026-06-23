@@ -143,3 +143,78 @@ stateDiagram-v2
     TERMINATING --> TERMINATED: POST /terminate
     TERMINATED --> [*]
 ```
+
+## Listing MicroVM images and instances
+
+`awsv` = AWS CLI v2. All commands need `--region`. The `--endpoint` shown
+below targets the **gamma (preview)** control plane — **omit `--endpoint`
+entirely to hit production**, now that the service is GA (the CLI resolves
+`https://lambda.<region>.amazonaws.com` from the service model). Note that
+gamma and prod are separate environments: resources created in one are not
+visible in the other.
+
+Operation naming is asymmetric: images are `list-microvm-images` (hyphenated),
+instances are `list-microvms` (no hyphen). Both return results under `items[]`.
+
+### MicroVM images
+
+```bash
+awsv aws lambda-microvms list-microvm-images \
+  --region us-east-2 \
+  --endpoint https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev
+```
+
+Readable table (name / state / version / ARN):
+
+```bash
+awsv aws lambda-microvms list-microvm-images \
+  --region us-east-2 \
+  --endpoint https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev \
+  --query 'items[].{name:name,state:state,version:latestActiveImageVersion,arn:imageArn}' \
+  --output table
+```
+
+### MicroVM instances
+
+```bash
+awsv aws lambda-microvms list-microvms \
+  --region us-east-2 \
+  --endpoint https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev
+```
+
+Readable table (id / state / endpoint / image), excluding terminated VMs (they
+linger in the list indefinitely):
+
+```bash
+awsv aws lambda-microvms list-microvms \
+  --region us-east-2 \
+  --endpoint https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev \
+  --query "items[?state!='TERMINATED'].{id:microvmId,state:state,endpoint:endpoint,image:imageArn}" \
+  --output table
+```
+
+### Production (GA) — omit `--endpoint`
+
+Same commands with no `--endpoint`; the CLI resolves the prod endpoint
+(`https://lambda.us-east-2.amazonaws.com`) from the service model. Use these to
+see what exists in **production** (a different environment than gamma above):
+
+```bash
+# Images in prod
+awsv aws lambda-microvms list-microvm-images --region us-east-2
+
+# Instances in prod
+awsv aws lambda-microvms list-microvms --region us-east-2
+
+# Prod, readable tables
+awsv aws lambda-microvms list-microvm-images --region us-east-2 \
+  --query 'items[].{name:name,state:state,version:latestActiveImageVersion,arn:imageArn}' \
+  --output table
+
+awsv aws lambda-microvms list-microvms --region us-east-2 \
+  --query "items[?state!='TERMINATED'].{id:microvmId,state:state,endpoint:endpoint,image:imageArn}" \
+  --output table
+```
+
+> Avoid `sort_by(items, &createdAt)` in `--query` — it throws if any item has a
+> null sort key. Sort client-side after `--output json` instead.

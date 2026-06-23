@@ -6,7 +6,7 @@ COPY go.mod ./
 COPY main.go ./
 RUN go mod tidy && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /out/server .
 
-FROM --platform=linux/arm64 public.ecr.aws/amazonlinux/amazonlinux:2023
+FROM --platform=linux/arm64 public.ecr.aws/lambda/microvms:al2023-minimal
 
 WORKDIR /app
 
