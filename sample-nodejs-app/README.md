@@ -30,6 +30,20 @@ docker run --rm -p 8080:8080 sample-nodejs-app
 
 The application listens on port **8080**.
 
+## Deployment
+
+### 1. Streamlined MicroVM deployment
+
+```bash
+export DD_API_KEY=<YOUR_API_KEY>; make build; cd - ;  export S3_BUCKET=microvm-sample-nodejs-app; cd ..; ./deploy-microvm.sh sample-nodejs-app
+```
+
+### 2. Local Docker-based deployment
+
+```bash
+export DD_API_KEY=<YOUR_API_KEY>;make stop; sleep 3; make build-local; make start; sleep 5; make check
+```
+
 ## Testing
 
 ```bash
