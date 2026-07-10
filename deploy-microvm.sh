@@ -179,19 +179,13 @@ HOOKS_JSON=$(cat <<'EOF'
   "port": 9000,
   "microvmImageHooks": {
     "ready":                   "ENABLED",
-    "readyTimeoutInSeconds":   60,
-    "validate":                "ENABLED",
-    "validateTimeoutInSeconds": 60
+    "validate":                "ENABLED"
   },
   "microvmHooks": {
     "run":                     "ENABLED",
-    "runTimeoutInSeconds":     2,
     "resume":                  "ENABLED",
-    "resumeTimeoutInSeconds":  2,
     "suspend":                 "ENABLED",
-    "suspendTimeoutInSeconds": 5,
-    "terminate":               "ENABLED",
-    "terminateTimeoutInSeconds": 5
+    "terminate":               "ENABLED"
   }
 }
 EOF
