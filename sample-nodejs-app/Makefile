@@ -9,13 +9,13 @@ DD_TRACE_JS_REPO := /Users/tianning.li/DataDog/dd-trace-js
 .PHONY: build build-local start stop check
 
 build:
-	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
+	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	cd $(DD_TRACE_JS_REPO) && npm pack
 	cp $(DD_TRACE_JS_REPO)/dd-trace-*.tgz dd-trace-local.tgz
 	docker build --build-arg DD_TRACE_TGZ=dd-trace-local.tgz -t $(IMAGE) .
 
 build-local:
-	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
+	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	cd $(DD_TRACE_JS_REPO) && npm pack
 	cp $(DD_TRACE_JS_REPO)/dd-trace-*.tgz dd-trace-local.tgz
 	docker build --build-arg DD_TRACE_TGZ=dd-trace-local.tgz -t $(IMAGE) -f Dockerfile.local .
