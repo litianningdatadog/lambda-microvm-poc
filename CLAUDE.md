@@ -36,70 +36,54 @@ These guidelines bias toward caution over speed. The test: "Would a senior engin
 - 
 ## Overview
 
-This is an **AWS Lambda MicroVM Private Preview** developer kit. Lambda MicroVMs are serverless ephemeral compute environments (max 8 hours) powered by Firecracker virtualization, combining VM-level isolation with container resource efficiency. This kit contains the preview SDK artifacts and two example applications.
+This is an **AWS Lambda MicroVM** developer kit (started during Private Preview; the service is now GA). Lambda MicroVMs are serverless ephemeral compute environments (max 8 hours) powered by Firecracker virtualization, combining VM-level isolation with container resource efficiency. `lambda-microvms` now ships natively in AWS CLI v2 and boto3 GA — no custom SDK wheels or `aws configure add-model` step required (see Setup below). This kit contains SDK reference material and several example applications.
 
-**Preview constraints:**
-- ARM64 (aarch64) architecture only
-- US East 2 (Ohio) region only
-- No VPC egress connectivity
+**Constraints:**
+- ARM64 (aarch64) architecture only — confirmed in the GA schema (`Architecture` enum is `ARM_64` only)
+- US East 2 (Ohio) region only, for this dev kit's configured account/environment
 - Snapshot optimization is required (on by default)
 - No container image support — zip artifact + Dockerfile only
-- Updating a MicroVM Image is not supported; create a new one instead
+
+GA added a few capabilities the old preview docs said were unsupported:
+- **VPC egress is supported** — attach an egress network connector of type `VPC_EGRESS` to reach RDS/Aurora, ElastiCache, internal NLBs, etc. (see Step 2 below and `networking.md` in the [official reference](https://github.com/aws/agent-toolkit-for-aws/tree/main/skills/specialized-skills/serverless-skills/aws-lambda-microvms/references)).
+- **Updating a MicroVM Image is supported** via `update-microvm-image` — this adds a new *version* to an existing image (same name, same underlying S3-backed artifact history) rather than requiring a brand-new image resource per deploy. `deploy-microvm.sh` does this automatically: it reuses the existing image by name and calls `update-microvm-image` instead of `create-microvm-image` when one already exists.
 
 ## Repository Layout
 
-This repo mixes **preview SDK artifacts** (schemas, custom boto3 wheels) with **runnable examples** at two distinct layers of the stack:
+This repo mixes **legacy preview SDK artifacts** (schemas, custom boto3 wheels — no longer required now that GA ships natively) with **runnable examples** at two distinct layers of the stack:
 
 | Concern | Location |
 |---------|----------|
-| Preview API schema | `lambdamicrovms-2025-09-09.json` (canonical), `lambdamicrovms-2025-09-09-2026-03-07.json` (diff snapshot) |
-| Custom preview SDK wheels | `Boto3CliV1Artifacts/` — install before anything else (see Setup) |
-| Canonical boto3 usage | `microvms_boto3_example.py` (minimal `list_micro_vms` example) |
-| IAM policies for the build role | `build-role-policy.json`, `build-role-trust-policy.json` (trust `lambda-microvms-private-preview.amazonaws.com`) |
+| GA API schema (authoritative) | `lambdamicrovms-ga.api.json` — sourced from botocore; also what AWS CLI v2 / boto3 already ship natively (see Setup) |
+| Old preview API schema (historical) | `lambdamicrovms-2025-09-09.json` (canonical), `lambdamicrovms-2025-09-09-2026-03-07.json` (diff snapshot) — superseded by GA; kept for diffing |
+| Legacy preview SDK wheels | `Boto3CliV1Artifacts/` — **no longer needed**; GA CLI/boto3 already support `lambda-microvms` natively. Kept for historical reference only |
+| Canonical boto3 usage | `microvms_boto3_example.py` (minimal `list_micro_vms` example — note this uses the old preview operation name) |
+| IAM policies for the build role | `build-role-policy.json`, `build-role-trust-policy.json` — must trust `lambda.amazonaws.com` (GA) with an `aws:SourceAccount` condition; the repo's trust policy also still carries the legacy `lambda-microvms-private-preview.amazonaws.com` principal for backward compatibility |
+| One-shot deploy / run scripts | `deploy-microvm.sh` (zip → S3 → create-or-update image → poll → run → token), `run-microvm.sh` (run a MicroVM from an existing image ARN or clone an existing MicroVM's config), `get-microvm-token.sh` (mint a fresh auth token for an existing MicroVM) |
 | **User-app examples** (what runs on port 8080 / 50051) | `simple-python-repl-app/` (Flask REPL), `nodejs-grpc-example/` (gRPC echo) |
 | **Lifecycle-hook examples** (what runs on port 9000) | `sample-flask-app/` (bare Flask), `sample-flask-app-using-serverless-comp-poc/` (wrapped by `datadog-serverless-compat` running as PID 1) |
 | Sidecar (WIP Rust) | `microvm-sidecar/` — static ARM64 binary that handles all 5 hooks so user apps don't have to |
 | Sidecar design + plan | `docs/superpowers/specs/2026-04-09-microvm-sidecar-design.md`, `docs/superpowers/plans/2026-04-09-microvm-sidecar-lifecycle.md` |
 | Lifecycle-hook API spec | `lifecycle_hooks_openapi.json` |
 
-## Setup: Private Preview SDK
+## Setup
 
-The `Boto3CliV1Artifacts/` directory contains custom-built wheel files that must be installed before using the API. Use a virtual environment:
-
-```bash
-cd Boto3CliV1Artifacts
-python3 -m venv python-sdk-test && source python-sdk-test/bin/activate
-python3 -m pip install botocore-1.42.39-py3-none-any.whl
-python3 -m pip install boto3-1.42.39-py3-none-any.whl
-# Optional AWS CLI v1:
-python3 -m pip install awscli-1.44.29-py3-none-any.whl
-```
+`lambda-microvms` is GA and ships natively in current AWS CLI v2 and boto3 — **no wheel installation and no `aws configure add-model` step needed.** (Confirmed: AWS CLI 2.35.20 and boto3 1.42.57 both recognize the service out of the box.) The `Boto3CliV1Artifacts/` custom wheels were required during Private Preview and are kept only for historical reference — installing them today would shadow the GA-capable stock SDK with an older preview-only one that's missing operations like `update-microvm-image` and `run-microvm`.
 
 ### CLI Setup (AWS CLI v2)
 
 ```bash
-# Run from the repo root; the schema ships in this repo.
-awsv aws configure add-model \
-  --service-model "file://$(pwd)/lambdamicrovms-2025-09-09.json" \
-  --service-name lambda-microvms
-
-# Verify:
-awsv aws lambda-microvms list-micro-vm-images \
-  --region us-east-2 \
-  --endpoint https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev
+# Verify the service is recognized (no add-model / endpoint override needed):
+awsv aws lambda-microvms list-microvm-images --region us-east-2
 ```
 
-**Region and `--endpoint` are required on every CLI command** — the endpoint is an internal preview-only URL.
+**`--region` is required; `--endpoint` is not** — GA resolves the real regional endpoint. (`deploy-microvm.sh` / `run-microvm.sh` / `get-microvm-token.sh` only ever pass `--region`.)
 
 ### boto3 client pattern
 
 ```python
 import boto3
-client = boto3.client(
-    'lambda-microvms',
-    region_name="us-east-2",
-    endpoint_url='https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev'
-)
+client = boto3.client('lambda-microvms', region_name="us-east-2")
 ```
 
 ## Core Workflow
@@ -125,20 +109,32 @@ echo "Created: $ZIP_PATH"
 #   s3://<app-name>/YYYYMMDD_HHMMSS.zip
 # Old builds stay in the bucket so you can roll back by pointing a new
 # image at a prior key.
-awsv aws lambda-microvms create-micro-vm-image \
+awsv aws lambda-microvms create-microvm-image \
   --code-artifact uri=s3://simple-python-repl-app/20260421_095217.zip \
   --name simple-python-repl-app \
-  --base-micro-vm-image-arn arn:aws:lambda:::microvm-image:lambda-microvms-al2023-1 \
+  --base-image-arn arn:aws:lambda:us-east-2:aws:microvm-image:al2023-1 \
   --build-role-arn arn:aws:iam::425362996713:role/microvm-build-role \
-  --region us-east-2 \
-  --endpoint https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev
+  --region us-east-2
 ```
 
-For the full zip → upload → create → poll → launch flow in one command, use `./deploy-microvm.sh <app-dir>`.
+For the full zip → upload → create-or-update → poll → launch flow in one command, use `./deploy-microvm.sh <app-dir>`.
 
-Build logs stream to CloudWatch under `/aws/lambda/microvms/<image-name>`.
+**Iterating on an existing image (GA):** re-running against an image name that already exists calls `update-microvm-image` instead of `create-microvm-image` — this adds a new *version* to the same image rather than creating a new image resource per deploy. `deploy-microvm.sh` does this automatically (it looks up the image by name first); to do it by hand:
 
-**Build-time IAM role** must trust `lambda-microvms-private-preview.amazonaws.com` and have:
+```bash
+awsv aws lambda-microvms update-microvm-image \
+  --image-identifier arn:aws:lambda:us-east-2:425362996713:microvm-image:simple-python-repl-app \
+  --code-artifact uri=s3://simple-python-repl-app/20260421_101533.zip \
+  --base-image-arn arn:aws:lambda:us-east-2:aws:microvm-image:al2023-1 \
+  --build-role-arn arn:aws:iam::425362996713:role/microvm-build-role \
+  --region us-east-2
+```
+
+Note `update-microvm-image` uses **PUT semantics** — every required field (`codeArtifact`, `baseImageArn`, `buildRoleArn`) must be resent, not just the ones that changed.
+
+Build logs stream to CloudWatch under `/aws/lambda-microvms/<image-name>`.
+
+**Build-time IAM role** must trust `lambda.amazonaws.com` (GA; the repo's `build-role-trust-policy.json` also still carries the legacy `lambda-microvms-private-preview.amazonaws.com` principal for backward compatibility) and have:
 - `s3:GetObject` — download your zip
 - `logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents` — CloudWatch logs
 - `ecr:GetAuthorizationToken` — only if Dockerfile uses a private ECR image
@@ -146,14 +142,14 @@ Build logs stream to CloudWatch under `/aws/lambda/microvms/<image-name>`.
 ### 2. Launch a MicroVM
 
 ```bash
-awsv aws lambda-microvms launch-micro-vm \
-  --micro-vm-image-arn arn:aws:lambda:us-east-2:425362996713:microvm-image:simple-python-repl-app-2 \
-  --micro-vm-image-version 1.0 \
-  --ingress-network-connectors "arn:aws:lambda:us-east-2:aws:network-connector:aws-network-connector:HTTP_INGRESS" \
-  --egress-network-connectors "arn:aws:lambda:us-east-2:aws:network-connector:aws-network-connector:INTERNET_EGRESS" \
-  --idle-policy autoResumeEnabled=true,maxIdleDurationSeconds=900,suspendedDurationSeconds=300 \
-  --region us-east-2 \
-  --endpoint https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev
+awsv aws lambda-microvms run-microvm \
+  --image-identifier arn:aws:lambda:us-east-2:425362996713:microvm-image:simple-python-repl-app-2 \
+  --image-version 1.0 \
+  --execution-role-arn arn:aws:iam::425362996713:role/microvm-build-role \
+  --ingress-network-connectors '["arn:aws:lambda:us-east-2:aws:network-connector:aws-network-connector:HTTP_INGRESS"]' \
+  --egress-network-connectors '["arn:aws:lambda:us-east-2:aws:network-connector:aws-network-connector:INTERNET_EGRESS"]' \
+  --idle-policy '{"autoResumeEnabled":true,"maxIdleDurationSeconds":900,"suspendedDurationSeconds":300}' \
+  --region us-east-2
 ```
 
 **Network connectors are optional (GA).** With no `--ingress-network-connectors`
@@ -176,12 +172,15 @@ Resources per MicroVM: up to 4 vCPUs / 8 GB memory / 32 GB disk.
 ### 3. Generate an Auth Token
 
 ```bash
-awsv aws lambda-microvms generate-micro-vm-auth-token \
-  --micro-vm-id ai-a2ceb494-7cf7-9581-8a37-b6078af5ec85 \
-  --expiration-minutes 30 \
+awsv aws lambda-microvms create-microvm-auth-token \
+  --microvm-identifier microvm-74c4447e-c05c-31a5-b310-67af45a34d79 \
+  --expiration-in-minutes 30 \
+  --allowed-ports '[{"port":8080}]' \
   --region us-east-2 \
-  --endpoint https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev
+  --query 'authToken."X-aws-proxy-auth"' --output text
 ```
+
+`--allowed-ports` is **required** in GA — scope the token to the port(s) your app/hooks actually listen on. Each entry is `{"port": N}`, `{"range": {"startPort": N, "endPort": M}}`, or `{"allPorts": {}}`. Max TTL is 60 minutes. For shell access instead, use `create-microvm-shell-auth-token` with the `SHELL_INGRESS` connector attached at run time.
 
 ### 4. Connect to a MicroVM
 
@@ -195,7 +194,7 @@ in the generated `.microvm-token.*` file.)
 ```bash
 # Fetch the endpoint for a running MicroVM:
 awsv aws lambda-microvms get-microvm --microvm-identifier <MICROVM_ID> \
-  --region us-east-2 --endpoint https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev \
+  --region us-east-2 \
   --query 'endpoint' --output text
 ```
 
@@ -329,17 +328,17 @@ below are the configurable maximums from the GA schema.
 
 MicroVM Images are Firecracker snapshots shared across all MicroVMs launched from that image. **Do not generate unique content (IDs, secrets, random seeds) at image build time.** Generate unique content in the `run` hook or after launch.
 
-Use CSPRNGs: Java `SecureRandom`, Python `random.SystemRandom`, Node.js `crypto.randomBytes`, .NET `RandomNumberGenerator`, or read from `/dev/urandom`.
+Use CSPRNGs: Java `SecureRandom`, Python `secrets`/`random.SystemRandom`, Node.js `crypto.randomBytes`/`crypto.randomUUID`, .NET `RandomNumberGenerator`, Go `crypto/rand`, Rust `rand::rngs::OsRng`, C/C++ `getrandom(2)`, or read from `/dev/urandom` per-call. Avoid `Math.random()`, `random.random()`, `System.Random`, `math/rand`, `rand::thread_rng()` seeded once, and caching `/dev/urandom` bytes read once at build time.
 
 ## Operating MicroVMs
 
-**Shell access (preview):** The shell opens on the host OS. To enter your app container:
+**Shell access:** requires `SHELL_INGRESS` attached at run time (see Section 2), then `create-microvm-shell-auth-token` — connect via the AWS console "Connect" button on the MicroVM detail page or a WebSocket client. The official GA docs describe the shell landing directly in the app's container; in this dev kit's environment the shell has opened on the host OS instead, requiring an extra step to reach the app container:
 ```bash
 ctr task ls                                              # find container ID
 ctr task exec -t --exec-id shell <container_id> /bin/sh  # enter container
 ```
 
-**Logs:** Stream to CloudWatch under `/aws/lambda/microvms/<image-name>`. When using `NO_EGRESS` mode, logs are only accessible via `wscat` directly and are lost on termination.
+**Logs:** Stream to CloudWatch under `/aws/lambda-microvms/<image-name>`. When using `NO_EGRESS` mode, logs are only accessible via `wscat` directly and are lost on termination.
 
 **Idle/suspend:** Idle time is measured by traffic on the endpoint URL. Async apps that don't serve endpoint traffic should disable auto-suspend or set a generous `maxIdleDurationSeconds`.
 
@@ -356,5 +355,5 @@ ctr task exec -t --exec-id shell <container_id> /bin/sh  # enter container
 
 See **Repository Layout** above for the canonical file map. Two items not covered there:
 
-- `boto3-installation-instructions.md` — standalone copy of the SDK/CLI install steps (duplicates the Setup section above)
+- `boto3-installation-instructions.md` — standalone copy of the old preview wheel-install steps; **stale** now that GA CLI/boto3 ship `lambda-microvms` natively (see Setup above)
 - `Boto3CliV1Artifacts/reviews/` — diffs and commit history for the custom preview boto3/CLI builds
