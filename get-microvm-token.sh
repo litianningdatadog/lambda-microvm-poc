@@ -3,25 +3,29 @@
 # get-microvm-token.sh
 #
 # Fetch a short-lived auth token for an existing MicroVM and write it to a
-# sourceable env file. Mirrors the convention used by deploy-microvm.sh —
-# we can't mutate the caller's environment from a subprocess, so we write
-# `export MICROVM_TOKEN=...` lines into a file and tell the user to source it.
+# sourceable env file. Mirrors the convention used by deploy-microvm.sh /
+# run-microvm.sh — we can't mutate the caller's environment from a
+# subprocess, so we write `export MICROVM_TOKEN=...` lines into a file and
+# tell the user to source it.
 #
 # Usage:
 #   ./get-microvm-token.sh <microvm-id> [expiration-minutes]
 #
 # Example:
-#   ./get-microvm-token.sh ai-39a154f1-5471-3a57-928e-60f8375700fe
-#   source .microvm-token.ai-39a154f1-5471-3a57-928e-60f8375700fe
+#   ./get-microvm-token.sh microvm-74c4447e-c05c-31a5-b310-67af45a34d79
+#   source .microvm-token.microvm-74c4447e-c05c-31a5-b310-67af45a34d79
 #   curl -H "X-aws-proxy-auth: $MICROVM_TOKEN" ...
 #
-# Config via env (defaults match CLAUDE.md):
+# Config via env (defaults match deploy-microvm.sh / run-microvm.sh):
 #   REGION              default: us-east-2
-#   ENDPOINT            default: gamma cell01 control-plane URL
 #   EXPIRATION_MINUTES  default: 30   (positional arg overrides this)
-#   APP_PORT            default: 8080 (X-aws-proxy-port hint, written to file)
+#   APP_PORT            default: 8080 (X-aws-proxy-port hint; also the port
+#                                      the token's --allowed-ports grants
+#                                      access to)
 #
-# Requires `awsv` (AWS CLI v2 alias from ~/.zshrc) and `jq`.
+# Requires `awsv` (AWS CLI v2 alias from ~/.zshrc) and `jq`. The
+# lambda-microvms service is built into AWS CLI v2 (GA) — no
+# `aws configure add-model` step needed.
 # =============================================================================
 
 MICROVM_ID="${1:?Usage: $0 <microvm-id> [expiration-minutes]}"
@@ -44,29 +48,21 @@ fi
 set -euo pipefail
 
 REGION="${REGION:-us-east-2}"
-ENDPOINT="${ENDPOINT:-https://cell01.us-east-2.gamma.fe.kepler-analytics.aws.dev}"
 APP_PORT="${APP_PORT:-8080}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
-MODEL_FILE="$SCRIPT_DIR/lambdamicrovms-2025-09-09.json"
 
-# Register the service model on every run (idempotent — overwrites the cached copy).
-if [[ -f "$MODEL_FILE" ]]; then
-  awsv aws configure add-model \
-    --service-model "file://$MODEL_FILE" \
-    --service-name lambda-microvms >/dev/null
-fi
-
-AWS_ARGS=(--region "$REGION" --endpoint "$ENDPOINT")
+AWS_ARGS=(--region "$REGION")
 
 # -- Call the API --------------------------------------------------------------
-# Schema: GenerateMicroVMAuthTokenResponse.authToken is a map<AuthTokenKey,
+# Schema: CreateMicrovmAuthTokenResponse.authToken is a map<AuthTokenKey,
 # AuthTokenValue> ("TokenParts"), max 10 entries. Today there's exactly one
 # entry — "X-aws-proxy-auth" — but the schema allows multiple, so we keep
 # the full map in the token file as a comment for forensic / future use.
-AUTH_JSON=$(awsv aws lambda-microvms generate-micro-vm-auth-token \
-  --micro-vm-id "$MICROVM_ID" \
-  --expiration-minutes "$EXPIRATION_MINUTES" \
+AUTH_JSON=$(awsv aws lambda-microvms create-microvm-auth-token \
+  --microvm-identifier "$MICROVM_ID" \
+  --expiration-in-minutes "$EXPIRATION_MINUTES" \
+  --allowed-ports '[{"port":'"$APP_PORT"'}]' \
   "${AWS_ARGS[@]}" \
   --output json)
 
