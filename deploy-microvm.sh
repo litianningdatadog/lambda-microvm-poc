@@ -6,14 +6,25 @@ set +x
 # Given an app directory, this script:
 #   1. Zips the directory (Dockerfile at the zip root)
 #   2. Uploads the zip to S3
-#   3. Creates a MicroVM Image (image name = directory basename)
-#   4. Polls every POLL_INTERVAL seconds until state == CREATED
-#   5. Launches a MicroVM from the new image
+#   3. Creates a MicroVM Image (image name = directory basename), or, if an
+#      image with that name already exists, updates it in place — this adds
+#      a new version to the SAME image/S3 bucket instead of creating a
+#      brand-new image resource every deploy
+#   4. Polls every POLL_INTERVAL seconds until the new version's state ==
+#      SUCCESSFUL
+#   5. Launches a MicroVM from the new image version
 #   6. Generates an auth token and writes MICROVM_ID / MICROVM_TOKEN exports
 #      to a sourceable file (can't export directly — we're a subprocess)
 #
 # Usage:    ./deploy-microvm.sh <app-dir>
 # Example:  ./deploy-microvm.sh sample-flask-app-serverless-init-poc
+#
+# Image reuse: per
+# https://github.com/aws/agent-toolkit-for-aws/blob/847f477649252b98f8fb828bbfeaf109b57b8cac/skills/specialized-skills/serverless-skills/aws-lambda-microvms/references/getting-started.md#step-8--iterate-versions
+# GA's `update-microvm-image` (PUT semantics) creates a new *version* of an
+# existing image rather than a whole new image resource. CLAUDE.md's note
+# that "Updating a MicroVM Image is not supported" describes the old preview
+# API — GA added exactly this operation, keyed by a stable image name.
 #
 # S3 layout:
 #   Bucket = <app-dir basename>     (created on demand; name must be
@@ -23,6 +34,10 @@ set +x
 #
 # Config via env (defaults match CLAUDE.md's example account/region):
 #   S3_BUCKET        default: <app-name>  (override to pin to a shared bucket)
+#   IMAGE_NAME       default: <app-name>, truncated to 30 chars — stable
+#                             across deploys so re-running against the same
+#                             app updates that image (new version) instead
+#                             of creating a new one
 #   BUILD_ROLE_ARN   default: arn:aws:iam::425362996713:role/microvm-build-role
 #   BASE_IMAGE_ARN   default: the AL2023 base image
 #   REGION           default: us-east-2
@@ -39,10 +54,8 @@ set +x
 # `jq` for parsing the multi-part authToken response. We source ~/.zshrc below
 # to pick up awsv — which is why this script is `#!/usr/bin/env zsh`, not bash.
 #
-# The GA lambda-microvms service model ships in this repo as
-# `lambdamicrovms-ga.api.json` (sourced from botocore). This script registers
-# it with the AWS CLI on every invocation (idempotent), so a fresh clone works
-# without first running the `aws configure add-model` step.
+# The lambda-microvms service is now built into AWS CLI v2 (GA) — no
+# `aws configure add-model` step needed.
 # =============================================================================
 
 APP_DIR="${1:?Usage: $0 <app-dir>}"
@@ -72,43 +85,18 @@ fi
 
 set -euo pipefail
 
-# Resolve this script's own directory (independent of the caller's cwd)
-# so we can find the lambda-microvms service model next to it in the repo.
-SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"
-MODEL_FILE="$SCRIPT_DIR/lambdamicrovms-ga.api.json"
-
-if [[ ! -f "$MODEL_FILE" ]]; then
-  print -u2 "ERROR: Service model not found at $MODEL_FILE"
-  print -u2 "       This script expects lambdamicrovms-ga.api.json to live"
-  print -u2 "       next to it in the repo root."
-  exit 1
-fi
-
-# Register the lambda-microvms service model on every invocation.
-# `aws configure add-model` is idempotent — it overwrites
-# ~/.aws/models/lambda-microvms/<api-version>/service-2.json with the
-# repo's copy. Doing this here means the script works on a fresh clone
-# without requiring the operator to follow CLAUDE.md's "CLI Setup"
-# step first.
-awsv aws configure add-model \
-  --service-model "file://$MODEL_FILE" \
-  --service-name lambda-microvms >/dev/null
-
 APP_NAME="$(basename "$APP_DIR")"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
 S3_BUCKET="${S3_BUCKET:-$APP_NAME}"
 # Image names must be unique within the account AND ≲ 30 chars empirically
 # (the documented max is 64, but the service rejects longer names with a
-# generic InvalidRequestException). Re-using a name collides with the
-# previous deploy — CLAUDE.md notes "Updating a MicroVM Image is not
-# supported; create a new one instead."
+# generic InvalidRequestException).
 #
-# Default layout: <app-prefix>-MMDDHHMMSS   (30 chars, unique per second)
-#   - 19 chars leading of APP_NAME
-#   - '-' separator
-#   - 10-char MMDDHHMMSS timestamp (second-precision, unique within a year)
-IMAGE_NAME="${IMAGE_NAME:-${APP_NAME:0:19}-$(date +%m%d%H%M%S)}"
+# Stable per app (no timestamp suffix): this lets step 3 detect a
+# same-named image on a re-deploy and add a new version to it via
+# `update-microvm-image` instead of creating a new image every time.
+IMAGE_NAME="${IMAGE_NAME:-${APP_NAME:0:30}}"
 REGION="${REGION:-us-east-2}"
 BUILD_ROLE_ARN="${BUILD_ROLE_ARN:-arn:aws:iam::425362996713:role/microvm-build-role}"
 BASE_IMAGE_ARN="${BASE_IMAGE_ARN:-arn:aws:lambda:${REGION}:aws:microvm-image:al2023-1}"
@@ -156,14 +144,14 @@ log "Exec role:  $EXECUTION_ROLE_ARN"
 log "Hooks:      all ENABLED; platform-default timeouts"
 
 # --- 1. Zip ----------------------------------------------------------------
-log "[1/5] Creating zip"
+log "[1/6] Creating zip"
 rm -f "$ZIP_PATH"
 
 ( cd "$APP_DIR" && zip -qr "$ZIP_PATH" . -x '*.DS_Store' 'claude-notifications.jsonl' )
 log "      zip size: $(du -h "$ZIP_PATH" | awk '{print $1}')"
 
 # --- 2. Upload to S3 -------------------------------------------------------
-log "[2/5] Ensuring bucket s3://$S3_BUCKET exists, then uploading"
+log "[2/6] Ensuring bucket s3://$S3_BUCKET exists, then uploading"
 if awsv aws s3api head-bucket --bucket "$S3_BUCKET" --region "$REGION" 2>/dev/null; then
   log "      bucket exists"
 else
@@ -172,8 +160,16 @@ else
 fi
 awsv aws s3 cp "$ZIP_PATH" "$S3_URI" --region "$REGION"
 
-# --- 3. Create MicroVM Image ----------------------------------------------
-log "[3/5] Creating MicroVM image '$IMAGE_NAME'"
+# --- 3. Create or update MicroVM Image -------------------------------------
+log "[3/6] Checking for an existing image named '$IMAGE_NAME'"
+# --name-filter does a substring match, so confirm an exact name match
+# client-side via JMESPath before treating it as "the same image".
+EXISTING_IMAGE_ARN=$(awsv aws lambda-microvms list-microvm-images \
+  --name-filter "$IMAGE_NAME" \
+  --no-paginate \
+  "${AWS_ARGS[@]}" \
+  --query "items[?name=='$IMAGE_NAME'] | [0].imageArn" --output text)
+[[ "$EXISTING_IMAGE_ARN" == "None" ]] && EXISTING_IMAGE_ARN=""
 
 # Hooks JSON (GA --hooks parameter).
 # microvmImageHooks: ready + validate are build-time; timeouts in seconds.
@@ -227,44 +223,71 @@ fi
 print $HOOKS_JSON
 print $ENV_VARS_JSON
 
-IMAGE_ARN=$(awsv aws lambda-microvms create-microvm-image \
-  --code-artifact "uri=$S3_URI" \
-  --name "$IMAGE_NAME" \
-  --base-image-arn "$BASE_IMAGE_ARN" \
-  --build-role-arn "$BUILD_ROLE_ARN" \
-  --hooks "$HOOKS_JSON" \
-  --environment-variables "$ENV_VARS_JSON" \
-  "${AWS_ARGS[@]}" \
-  --query 'imageArn' --output text)
-log "      image ARN: $IMAGE_ARN"
+# Shared create/update args (identical payload either way — GA's
+# update-microvm-image uses PUT semantics, so every required field must be
+# resent even though only codeArtifact usually changes between deploys).
+IMAGE_ARGS=(
+  --code-artifact "uri=$S3_URI"
+  --base-image-arn "$BASE_IMAGE_ARN"
+  --build-role-arn "$BUILD_ROLE_ARN"
+  --hooks "$HOOKS_JSON"
+  --environment-variables "$ENV_VARS_JSON"
+)
 
-# --- 4. Poll until CREATED -------------------------------------------------
-log "[4/5] Polling image state (every ${POLL_INTERVAL}s, timeout ${POLL_TIMEOUT}s)"
+if [[ -n "$EXISTING_IMAGE_ARN" ]]; then
+  log "      found existing image: $EXISTING_IMAGE_ARN"
+  log "[3/6] Updating MicroVM image '$IMAGE_NAME' (new version)"
+  IMAGE_JSON=$(awsv aws lambda-microvms update-microvm-image \
+    --image-identifier "$EXISTING_IMAGE_ARN" \
+    "${IMAGE_ARGS[@]}" \
+    "${AWS_ARGS[@]}" \
+    --output json)
+else
+  log "      no existing image found"
+  log "[3/6] Creating MicroVM image '$IMAGE_NAME'"
+  IMAGE_JSON=$(awsv aws lambda-microvms create-microvm-image \
+    --name "$IMAGE_NAME" \
+    "${IMAGE_ARGS[@]}" \
+    "${AWS_ARGS[@]}" \
+    --output json)
+fi
+IMAGE_ARN=$(print -r -- "$IMAGE_JSON"     | jq -r '.imageArn')
+IMAGE_VERSION=$(print -r -- "$IMAGE_JSON" | jq -r '.imageVersion')
+log "      image ARN:     $IMAGE_ARN"
+log "      image version: $IMAGE_VERSION"
+
+# --- 4. Poll until the new version's build succeeds ------------------------
+# Image-level state (CREATED/UPDATED) doesn't track per-version build
+# progress — poll the version itself (state: PENDING → IN_PROGRESS →
+# SUCCESSFUL | FAILED), which applies the same way whether this version came
+# from create-microvm-image or update-microvm-image.
+log "[4/6] Polling version state (every ${POLL_INTERVAL}s, timeout ${POLL_TIMEOUT}s)"
 start=$(date +%s)
 while :; do
-  state=$(awsv aws lambda-microvms get-microvm-image \
+  state=$(awsv aws lambda-microvms get-microvm-image-version \
     --image-identifier "$IMAGE_ARN" \
+    --image-version "$IMAGE_VERSION" \
     "${AWS_ARGS[@]}" \
     --query 'state' --output text 2>/dev/null) || {
     elapsed=$(( $(date +%s) - start ))
-    log "      WARN: get-microvm-image returned an error (transient?); retrying in ${POLL_INTERVAL}s  elapsed=${elapsed}s"
+    log "      WARN: get-microvm-image-version returned an error (transient?); retrying in ${POLL_INTERVAL}s  elapsed=${elapsed}s"
     sleep "$POLL_INTERVAL"
     continue
   }
   elapsed=$(( $(date +%s) - start ))
   log "      state=$state  elapsed=${elapsed}s"
   case "$state" in
-    CREATED) break ;;
+    SUCCESSFUL) break ;;
     FAILED)
-      # Version-level build failure — stateReason carries the error code.
-      reason=$(awsv aws lambda-microvms get-microvm-image \
-        --image-identifier "$IMAGE_ARN" "${AWS_ARGS[@]}" \
+      reason=$(awsv aws lambda-microvms get-microvm-image-version \
+        --image-identifier "$IMAGE_ARN" --image-version "$IMAGE_VERSION" \
+        "${AWS_ARGS[@]}" \
         --query 'stateReason' --output text 2>/dev/null || true)
-      log "ERROR: image build failed: ${reason:-<no reason returned>}"
+      log "ERROR: image version build failed: ${reason:-<no reason returned>}"
       log "      build logs: CloudWatch /aws/lambda-microvms/$IMAGE_NAME"
       exit 1
       ;;
-    CREATING) ;;  # still building — keep polling
+    PENDING|IN_PROGRESS) ;;  # still building — keep polling
     *) log "      (unexpected state '$state' — continuing to poll)" ;;
   esac
   if (( elapsed >= POLL_TIMEOUT )); then
@@ -273,7 +296,7 @@ while :; do
   fi
   sleep "$POLL_INTERVAL"
 done
-log "      image ready."
+log "      image version ready."
 
 # --- 5. Run MicroVM --------------------------------------------------------
 log "[5/6] Running MicroVM"
@@ -299,7 +322,7 @@ fi
 # exit rather than retrying.
 RUN_JSON=$(awsv aws lambda-microvms run-microvm \
   --image-identifier "$IMAGE_ARN" \
-  --image-version 1.0 \
+  --image-version "$IMAGE_VERSION" \
   --execution-role-arn "$EXECUTION_ROLE_ARN" \
   "${connector_args[@]}" \
   --idle-policy '{"autoResumeEnabled":true,"maxIdleDurationSeconds":900,"suspendedDurationSeconds":300}' \
