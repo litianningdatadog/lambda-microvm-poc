@@ -3,7 +3,7 @@ FROM --platform=linux/arm64 public.ecr.aws/lambda/microvms:al2023-minimal
 WORKDIR /app
 
 RUN dnf install -y \
-    nodejs npm \
+    nodejs22 nodejs22-npm \
     lsof net-tools procps-ng htop iproute iputils \
     vim-enhanced nano wget unzip file \
     && dnf clean all

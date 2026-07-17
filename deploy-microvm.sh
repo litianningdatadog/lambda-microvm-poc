@@ -206,7 +206,8 @@ ENV_VARS_JSON=$(cat <<'EOF'
   "DD_TRACE_ENABLED":     "true",
   "DD_TRACE_AGENT_URL":   "http://localhost:8126",
   "DD_TRACE_STARTUP_LOGS": "true",
-  "DD_TRACE_DEBUG":       "true"
+  "DD_TRACE_DEBUG":       "true",
+  "DD_REMOTE_CONFIGURATION_ENABLED": "true"
 }
 EOF
 )
