@@ -142,6 +142,7 @@ log "S3 target:  $S3_URI"
 log "Shell:      SHELL_INGRESS=$SHELL_ENABLED"
 log "Exec role:  $EXECUTION_ROLE_ARN"
 log "Hooks:      all ENABLED; platform-default timeouts"
+log "Forward:    DD_AWS_MICROVM_ENABLE_{READY,VALIDATE,RUN,RESUME,SUSPEND,TERMINATE}=true"
 
 # --- 1. Zip ----------------------------------------------------------------
 log "[1/6] Creating zip"
@@ -194,6 +195,13 @@ EOF
 # Environment variables baked into the snapshot (separate --environment-variables
 # parameter in GA). DD_AWS_MICROVM_USER_APP_PORT is already in each sample-app
 # Dockerfile, so it doesn't need to be repeated here.
+#
+# DD_AWS_MICROVM_ENABLE_{READY,VALIDATE,RUN,RESUME,SUSPEND,TERMINATE}: per
+# serverless-init branch tianning.li/microvm-07-12-hook-forward-flag-config,
+# each lifecycle hook now defaults to false (built-in handling) instead of
+# forwarding to the user app — a deliberate breaking change matching AWS's
+# own per-hook opt-in model. Set all six true here to keep this dev kit's
+# previous all-hooks-forward behavior.
 ENV_VARS_JSON=$(cat <<'EOF'
 {
   "DD_SITE":              "datadoghq.com",
@@ -207,7 +215,13 @@ ENV_VARS_JSON=$(cat <<'EOF'
   "DD_TRACE_AGENT_URL":   "http://localhost:8126",
   "DD_TRACE_STARTUP_LOGS": "true",
   "DD_TRACE_DEBUG":       "true",
-  "DD_REMOTE_CONFIGURATION_ENABLED": "true"
+  "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+  "DD_AWS_MICROVM_ENABLE_READY":     "true",
+  "DD_AWS_MICROVM_ENABLE_VALIDATE":  "true",
+  "DD_AWS_MICROVM_ENABLE_RUN":       "true",
+  "DD_AWS_MICROVM_ENABLE_RESUME":    "true",
+  "DD_AWS_MICROVM_ENABLE_SUSPEND":   "true",
+  "DD_AWS_MICROVM_ENABLE_TERMINATE": "true"
 }
 EOF
 )
