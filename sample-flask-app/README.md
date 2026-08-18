@@ -1,40 +1,53 @@
-# Sample Guest Application
+# sample-flask-app
 
-A simple Python application that implements the Lambda MicroVMs lifecycle hooks.
+A Flask sample guest application for Lambda MicroVMs. It mirrors
+`sample-python-app` while keeping Flask as the HTTP framework.
 
 ## Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/aws/lambda-microvms/runtime/beta/v1/ready` | Ready hook |
-| POST | `/aws/lambda-microvms/runtime/beta/v1/resume` | Resume hook |
-| POST | `/aws/lambda-microvms/runtime/beta/v1/suspend` | Suspend hook |
-| POST | `/aws/lambda-microvms/runtime/beta/v1/terminate` | Terminate hook |
 | GET | `/health` | Health check |
+| POST | `/aws/lambda-microvms/runtime/v1/validate` | Image validation hook |
+| POST | `/aws/lambda-microvms/runtime/v1/ready` | Image ready hook |
+| POST | `/aws/lambda-microvms/runtime/v1/run` | Runtime run hook |
+| POST | `/aws/lambda-microvms/runtime/v1/resume` | Runtime resume hook |
+| POST | `/aws/lambda-microvms/runtime/v1/suspend` | Runtime suspend hook |
+| POST | `/aws/lambda-microvms/runtime/v1/terminate` | Runtime terminate hook |
+| POST | `/execute` | Execute a Python snippet |
 
-## Running
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the application
-python app.py
-```
-
-The application listens on port 9000.
-
-## Testing
+## Local Python
 
 ```bash
-# Test resume hook
-curl -X POST http://localhost:9000/aws/lambda-microvms/runtime/beta/v1/resume \
-  -H "Content-Type: application/json" \
-  -d '{"microVmId": "vm-123", "meshIpv6Address": "fe80::1", "changedResources": ["Entropy"]}'
-
-# Test suspend hook
-curl -X POST http://localhost:9000/aws/lambda-microvms/runtime/beta/v1/suspend
-
-# Test terminate hook
-curl -X POST http://localhost:9000/aws/lambda-microvms/runtime/beta/v1/terminate
+python3.12 -m pip install -r requirements.txt
+python3.12 app.py
 ```
+
+The Flask app listens on port `8080`.
+
+## Docker
+
+`make build` follows the same installation flow as `sample-python-app`: it
+copies `serverless-init-linux-arm64`, copies the configured local `ddtrace`
+wheel, installs Flask into Python 3.12, installs `ddtrace` into
+`/dd_tracer/python`, and runs the app through `serverless-init`.
+
+```bash
+make build
+make start
+make check
+make stop
+```
+
+For the local-debug image with the expanded Datadog environment:
+
+```bash
+make build-local
+make start
+make check
+make stop
+```
+
+The user app is exposed on port `8080`. The lifecycle hook server provided by
+`serverless-init` is exposed on port `9000` and forwards hook calls to the Flask
+app.
