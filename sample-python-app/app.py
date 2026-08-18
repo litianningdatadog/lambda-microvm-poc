@@ -34,7 +34,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [s
 logger = logging.getLogger(__name__)
 
 BASE_PATH = "/aws/lambda-microvms/runtime/v1"
-VALIDATE_PATH = f"{BASE_PATH}/validate"
 PORT = 8080
 
 micro_vm_id = None
@@ -88,7 +87,7 @@ class Handler(BaseHTTPRequestHandler):
         global micro_vm_id
 
         with _span("POST", self.path):
-            if self.path == VALIDATE_PATH:
+            if self.path == f"{BASE_PATH}/validate":
                 logger.info(f"Validate hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
                 _send_empty(self)
 

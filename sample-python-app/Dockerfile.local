@@ -5,7 +5,7 @@ WORKDIR /app
 RUN dnf install -y \
     python3.12 python3.12-pip \
     lsof net-tools procps-ng htop iproute iputils \
-    vim-enhanced nano wget unzip file curl \
+    vim-enhanced nano wget unzip file \
     && dnf clean all
 
 COPY requirements.txt .

@@ -5,12 +5,12 @@ WORKDIR /app
 RUN dnf install -y \
     python3.12 python3.12-pip \
     lsof net-tools procps-ng htop iproute iputils \
-    vim-enhanced nano wget unzip file curl \
+    vim-enhanced nano wget unzip file \
     && dnf clean all
 
 COPY requirements.txt .
 RUN python3.12 -m pip install --no-cache-dir -r requirements.txt
-ARG DD_TRACE_WHEEL=ddtrace-4.9.0rc2-cp312-cp312-linux_aarch64.whl
+ARG DD_TRACE_WHEEL=ddtrace-4.15.0rc1-cp312-cp312-linux_aarch64.whl
 COPY ${DD_TRACE_WHEEL} /tmp/${DD_TRACE_WHEEL}
 RUN python3.12 -m pip install --target /dd_tracer/python/ --no-cache-dir /tmp/${DD_TRACE_WHEEL} \
     && rm -f /tmp/${DD_TRACE_WHEEL}
