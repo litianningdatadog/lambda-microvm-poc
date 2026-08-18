@@ -43,11 +43,64 @@ def _now_ts():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _read_json_body(handler):
-    length = int(handler.headers.get("Content-Length", 0))
-    if length == 0:
+def _body_preview(body, limit=4096):
+    text = body.decode("utf-8", errors="replace")
+    if len(text) > limit:
+        return f"{text[:limit]}...<truncated {len(text) - limit} chars>"
+    return text
+
+
+def _read_json_body(handler, log_body=False):
+    transfer_encoding = handler.headers.get("Transfer-Encoding", "").lower()
+    if "chunked" in transfer_encoding:
+        body = _read_chunked_body(handler)
+    else:
+        length = int(handler.headers.get("Content-Length", 0))
+        body = handler.rfile.read(length) if length else b""
+
+    if log_body:
+        logger.info(
+            "Run hook request body [contentLength=%s, transferEncoding=%s, contentType=%s, bodyBytes=%d, body=%r]",
+            handler.headers.get("Content-Length"),
+            handler.headers.get("Transfer-Encoding"),
+            handler.headers.get("Content-Type"),
+            len(body),
+            _body_preview(body),
+        )
+
+    if not body.strip():
         return {}
-    return json.loads(handler.rfile.read(length))
+    return json.loads(body.decode("utf-8"))
+
+
+def _read_chunked_body(handler):
+    chunks = []
+    while True:
+        line = handler.rfile.readline()
+        if not line:
+            break
+
+        size_text = line.split(b";", 1)[0].strip()
+        chunk_size = int(size_text, 16)
+        if chunk_size == 0:
+            # Consume any trailer headers plus the final blank line.
+            while True:
+                trailer = handler.rfile.readline()
+                if trailer in (b"\r\n", b"\n", b""):
+                    break
+            break
+
+        chunks.append(handler.rfile.read(chunk_size))
+        handler.rfile.read(2)
+
+    return b"".join(chunks)
+
+
+def _first_present(data, *keys):
+    for key in keys:
+        if key in data:
+            return data[key]
+    return None
 
 
 def _send_json(handler, status, body):
@@ -96,9 +149,9 @@ class Handler(BaseHTTPRequestHandler):
                 _send_empty(self)
 
             elif self.path == f"{BASE_PATH}/run":
-                data = _read_json_body(self)
-                micro_vm_id = data.get("microVmId")
-                mesh_ipv6_address = data.get("meshIpv6Address")
+                data = _read_json_body(self, log_body=True)
+                micro_vm_id = _first_present(data, "microVmId", "microvmId")
+                mesh_ipv6_address = _first_present(data, "meshIpv6Address", "meshIPv6Address", "meshIpv6")
                 logger.info(f"Run hook called — ts={_now_ts()}, microVmId={micro_vm_id}, meshIpv6Address={mesh_ipv6_address}")
                 _send_empty(self)
 
