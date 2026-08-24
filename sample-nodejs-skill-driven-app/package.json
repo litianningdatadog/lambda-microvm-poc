@@ -1,0 +1,13 @@
+{
+  "name": "sample-nodejs-skill-driven-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal Node.js app demonstrating AWS Lambda MicroVMs lifecycle hooks",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

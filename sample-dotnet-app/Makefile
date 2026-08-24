@@ -8,7 +8,7 @@ HOOKS_HOST       := http://localhost:$(HOOKS_PORT)
 .PHONY: build start stop check
 
 build:
-	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
+	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	docker build -t $(IMAGE) .
 
 start:

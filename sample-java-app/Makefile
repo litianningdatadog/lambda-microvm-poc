@@ -12,12 +12,12 @@ DD_TRACE_JAVA_JAR  := $(DD_TRACE_JAVA_REPO)/dd-java-agent/build/libs/dd-java-age
 .PHONY: build build-local start stop check
 
 build:
-	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
+	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	[ -f $(DD_TRACE_JAVA_JAR) ] && cp $(DD_TRACE_JAVA_JAR) . || true
 	docker build -t $(IMAGE) .
 
 build-local:
-	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
+	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	cd $(DD_TRACE_JAVA_REPO) && ./gradlew :dd-java-agent:shadowJar -x test --no-daemon
 	cp $(DD_TRACE_JAVA_JAR) .
 	docker build -f Dockerfile.local -t $(IMAGE) .

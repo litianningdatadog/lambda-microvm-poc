@@ -9,11 +9,11 @@ DD_TRACE_GO_REPO := /Users/tianning.li/DataDog/dd-trace-go
 .PHONY: build build-local start stop check
 
 build:
-	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
+	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	docker build -t $(IMAGE) .
 
 build-local:
-	cp /Users/tianning.li/DataDog/datadog-agent-internal/serverless-init-linux-arm64 .
+	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	go mod tidy
 	go mod vendor
 	docker build -f Dockerfile.local -t $(IMAGE) .
