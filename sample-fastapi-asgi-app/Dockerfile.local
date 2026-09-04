@@ -14,7 +14,7 @@ RUN python3.12 -m pip install --no-cache-dir -r requirements.txt
 # Install dd-trace from a pre-built local wheel (linux_aarch64 / cp312).
 # The wheel is copied into the build context and its filename is passed via
 # --build-arg DD_TRACE_WHEEL by `make build-local`.
-ARG DD_TRACE_WHEEL
+ARG DD_TRACE_WHEEL=ddtrace-4.15.0rc2-cp312-cp312-linux_aarch64.whl
 COPY ${DD_TRACE_WHEEL} /tmp/
 RUN python3.12 -m pip install --target /dd_tracer/python/ --no-cache-dir "/tmp/${DD_TRACE_WHEEL}"
 

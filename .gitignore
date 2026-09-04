@@ -37,7 +37,6 @@ Boto3CliV1Artifacts/awscli-bundle.zip
 # Do NOT ignore these — they are preview-kit deliverables, not build output:
 #   Boto3CliV1Artifacts/*.whl                    custom preview SDK wheels (Python)
 #   Boto3CliV1Artifacts/*.tar.gz                 source distributions
-#   *.zip (at repo root)                         uploadable MicroVM Image artifacts
 #   sample-flask-app-using-serverless-comp-poc/datadog-serverless-compat    ARM64 sidecar binary
 /sample-flask-app-serverless-init-poc/serverless-init-linux-arm64
 /*/run.log
@@ -56,4 +55,7 @@ Boto3CliV1Artifacts/awscli-bundle.zip
 /sample-python-app/serverless-init-linux-arm64
 /sample-go-app/vendor/
 /sample-nodejs-app/dd-trace-local.tgz
-/sample-python-app/ddtrace-*.whl
+
+# Local MicroVM build-context artifacts copied by sample Makefiles.
+/sample-*/serverless-init-linux-arm64
+/sample-*/ddtrace-*.whl
