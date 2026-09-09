@@ -2,15 +2,14 @@
 """Django ASGI sample app for Lambda MicroVM lifecycle hooks."""
 
 import json
-import logging
 import os
 import sys
 import traceback
 from contextlib import nullcontext
-from datetime import datetime, timezone
 from io import StringIO
 
 from django.conf import settings
+from loguru import logger as loguru_logger
 
 BASE_PATH = "/aws/lambda-microvms/runtime/v1"
 PORT = 8080
@@ -39,13 +38,10 @@ except ImportError:
 
 django.setup()
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - [sample-django-asgi-app] %(message)s")
-logger = logging.getLogger(__name__)
+loguru_logger.remove()
+loguru_logger.add(sys.stdout, level="INFO", serialize=True)
+logger = loguru_logger.bind(service=APP_NAME)
 micro_vm_id = None
-
-
-def _now_ts():
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _body_preview(body, limit=4096):
@@ -59,14 +55,13 @@ def _read_json_body(request, log_body=False):
     body = request.body or b""
 
     if log_body:
-        logger.info(
-            "Run hook request body [contentLength=%s, transferEncoding=%s, contentType=%s, bodyBytes=%d, body=%r]",
-            request.headers.get("Content-Length"),
-            request.headers.get("Transfer-Encoding"),
-            request.headers.get("Content-Type"),
-            len(body),
-            _body_preview(body),
-        )
+        logger.bind(
+            content_length=request.headers.get("Content-Length"),
+            transfer_encoding=request.headers.get("Transfer-Encoding"),
+            content_type=request.headers.get("Content-Type"),
+            body_bytes=len(body),
+            body=_body_preview(body),
+        ).info("run_hook_request_body")
 
     if not body.strip():
         return {}
@@ -92,19 +87,19 @@ def _span(method, path):
 
 def health(request: HttpRequest):
     with _span("GET", request.path):
-        logger.info("Health check called [ts=%s, microVmId=%s]", _now_ts(), micro_vm_id)
+        logger.bind(micro_vm_id=micro_vm_id).info("health_check_called")
         return JsonResponse({"status": "healthy"})
 
 
 def validate(request: HttpRequest):
     with _span("POST", request.path):
-        logger.info("Validate hook called [ts=%s, microVmId=%s]", _now_ts(), micro_vm_id)
+        logger.bind(micro_vm_id=micro_vm_id).info("validate_hook_called")
         return _send_empty()
 
 
 def ready(request: HttpRequest):
     with _span("POST", request.path):
-        logger.info("Ready hook called [ts=%s, microVmId=%s]", _now_ts(), micro_vm_id)
+        logger.bind(micro_vm_id=micro_vm_id).info("ready_hook_called")
         return _send_empty()
 
 
@@ -116,30 +111,28 @@ def run(request: HttpRequest):
         micro_vm_id = _first_present(data, "microVmId", "microvmId")
         mesh_ipv6_address = _first_present(data, "meshIpv6Address", "meshIPv6Address", "meshIpv6")
 
-        logger.info(
-            "Run hook called [ts=%s, microVmId=%s, meshIpv6Address=%s]",
-            _now_ts(),
-            micro_vm_id,
-            mesh_ipv6_address,
-        )
+        logger.bind(
+            micro_vm_id=micro_vm_id,
+            mesh_ipv6_address=mesh_ipv6_address,
+        ).info("run_hook_called")
         return _send_empty()
 
 
 def resume(request: HttpRequest):
     with _span("POST", request.path):
-        logger.info("Resume hook called [ts=%s, microVmId=%s]", _now_ts(), micro_vm_id)
+        logger.bind(micro_vm_id=micro_vm_id).info("resume_hook_called")
         return _send_empty()
 
 
 def suspend(request: HttpRequest):
     with _span("POST", request.path):
-        logger.info("Suspend hook called [ts=%s, microVmId=%s]", _now_ts(), micro_vm_id)
+        logger.bind(micro_vm_id=micro_vm_id).info("suspend_hook_called")
         return _send_empty()
 
 
 def terminate(request: HttpRequest):
     with _span("POST", request.path):
-        logger.info("Terminate hook called [ts=%s, microVmId=%s]", _now_ts(), micro_vm_id)
+        logger.bind(micro_vm_id=micro_vm_id).info("terminate_hook_called")
         return _send_empty()
 
 
@@ -151,7 +144,7 @@ def execute_code(request: HttpRequest):
             if not code:
                 return JsonResponse({"error": "No code provided"}, status=400)
 
-            logger.info("Execute called [ts=%s, microVmId=%s]", _now_ts(), micro_vm_id)
+            logger.bind(micro_vm_id=micro_vm_id).info("execute_called")
 
             old_stdout, old_stderr = sys.stdout, sys.stderr
             captured_out, captured_err = StringIO(), StringIO()
@@ -190,9 +183,9 @@ application = get_asgi_application()
 if __name__ == "__main__":
     import uvicorn
 
-    logger.info("Starting %s on port %s", APP_NAME, PORT)
+    logger.bind(port=PORT).info("app_starting")
     env_lines = "\n".join(f"  {k}={v}" for k, v in sorted(os.environ.items()) if k != "DD_API_KEY")
-    logger.info("Environment variables:\n%s", env_lines)
+    logger.bind(values=env_lines).info("environment_variables")
     print(f"""
 Sample commands (server running on port {PORT}):
 

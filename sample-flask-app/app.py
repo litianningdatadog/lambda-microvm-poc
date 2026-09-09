@@ -14,14 +14,13 @@ Endpoints:
 """
 
 import json
-import logging
 import os
 import sys
 import traceback
 from contextlib import nullcontext
-from datetime import datetime, timezone
 from io import StringIO
 
+import structlog
 from flask import Flask, jsonify, request
 
 try:
@@ -29,18 +28,22 @@ try:
 except ImportError:
     dd_tracer = None
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [sample-flask-app] %(message)s')
-logger = logging.getLogger(__name__)
+structlog.configure(
+    processors=[
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso", utc=True, key="ts"),
+        structlog.processors.JSONRenderer(),
+    ],
+    logger_factory=structlog.PrintLoggerFactory(),
+    cache_logger_on_first_use=False,
+)
+logger = structlog.get_logger().bind(service="sample-flask-app")
 
 BASE_PATH = "/aws/lambda-microvms/runtime/v1"
 PORT = 8080
 
 app = Flask(__name__)
 micro_vm_id = None
-
-
-def _now_ts():
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _body_preview(body, limit=4096):
@@ -55,12 +58,12 @@ def _read_json_body(log_body=False):
 
     if log_body:
         logger.info(
-            "Run hook request body [contentLength=%s, transferEncoding=%s, contentType=%s, bodyBytes=%d, body=%r]",
-            request.headers.get("Content-Length"),
-            request.headers.get("Transfer-Encoding"),
-            request.headers.get("Content-Type"),
-            len(body),
-            _body_preview(body),
+            "run_hook_request_body",
+            content_length=request.headers.get("Content-Length"),
+            transfer_encoding=request.headers.get("Transfer-Encoding"),
+            content_type=request.headers.get("Content-Type"),
+            body_bytes=len(body),
+            body=_body_preview(body),
         )
 
     if not body.strip():
@@ -89,7 +92,7 @@ def _span(method, path):
 def health():
     """Health check endpoint."""
     with _span("GET", request.path):
-        logger.info(f"Health check called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+        logger.info("health_check_called", micro_vm_id=micro_vm_id)
         return jsonify({"status": "healthy"})
 
 
@@ -97,7 +100,7 @@ def health():
 def validate():
     """Handle validate hook from Lambda MicroVMs."""
     with _span("POST", request.path):
-        logger.info(f"Validate hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+        logger.info("validate_hook_called", micro_vm_id=micro_vm_id)
         return _send_empty()
 
 
@@ -105,7 +108,7 @@ def validate():
 def ready():
     """Handle ready hook from Lambda MicroVMs."""
     with _span("POST", request.path):
-        logger.info(f"Ready hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+        logger.info("ready_hook_called", micro_vm_id=micro_vm_id)
         return _send_empty()
 
 
@@ -119,7 +122,11 @@ def run():
         micro_vm_id = _first_present(data, "microVmId", "microvmId")
         mesh_ipv6_address = _first_present(data, "meshIpv6Address", "meshIPv6Address", "meshIpv6")
 
-        logger.info(f"Run hook called - ts={_now_ts()}, microVmId={micro_vm_id}, meshIpv6Address={mesh_ipv6_address}")
+        logger.info(
+            "run_hook_called",
+            micro_vm_id=micro_vm_id,
+            mesh_ipv6_address=mesh_ipv6_address,
+        )
         return _send_empty()
 
 
@@ -127,7 +134,7 @@ def run():
 def resume():
     """Handle resume hook from Lambda MicroVMs."""
     with _span("POST", request.path):
-        logger.info(f"Resume hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+        logger.info("resume_hook_called", micro_vm_id=micro_vm_id)
         return _send_empty()
 
 
@@ -135,7 +142,7 @@ def resume():
 def suspend():
     """Handle suspend hook from Lambda MicroVMs."""
     with _span("POST", request.path):
-        logger.info(f"Suspend hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+        logger.info("suspend_hook_called", micro_vm_id=micro_vm_id)
         return _send_empty()
 
 
@@ -143,7 +150,7 @@ def suspend():
 def terminate():
     """Handle terminate hook from Lambda MicroVMs."""
     with _span("POST", request.path):
-        logger.info(f"Terminate hook called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+        logger.info("terminate_hook_called", micro_vm_id=micro_vm_id)
         return _send_empty()
 
 
@@ -156,7 +163,7 @@ def execute_code():
             if not code:
                 return jsonify({"error": "No code provided"}), 400
 
-            logger.info(f"Execute called [ts={_now_ts()}, microVmId={micro_vm_id}]")
+            logger.info("execute_called", micro_vm_id=micro_vm_id)
 
             old_stdout, old_stderr = sys.stdout, sys.stderr
             captured_out, captured_err = StringIO(), StringIO()
@@ -187,9 +194,9 @@ def execute_code():
 
 
 if __name__ == "__main__":
-    logger.info(f"Starting sample-flask-app on port {PORT}")
+    logger.info("app_starting", port=PORT)
     env_lines = '\n'.join(f'  {k}={v}' for k, v in sorted(os.environ.items()) if k != 'DD_API_KEY')
-    logger.info(f"Environment variables:\n{env_lines}")
+    logger.info("environment_variables", values=env_lines)
     print(f"""
 Sample commands (server running on port {PORT}):
 
