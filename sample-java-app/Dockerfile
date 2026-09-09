@@ -25,8 +25,10 @@ RUN mkdir -p /dd_tracer/java
 #curl -L https://dtdg.co/latest-java-tracer -o /dd_tracer/java/dd-java-agent.jar
 COPY dd-java-agent-1.64.0-SNAPSHOT.jar /dd_tracer/java/dd-java-agent.jar
 
-COPY serverless-init-linux-arm64 /serverless-init
-RUN chmod +x /serverless-init
+# Old local serverless-init copy path, kept for easy revert:
+# COPY serverless-init-linux-arm64 /serverless-init
+# RUN chmod +x /serverless-init
+COPY --from=datadog/serverless-init:1.10.4 /datadog-init /serverless-init
 
 EXPOSE 8080
 

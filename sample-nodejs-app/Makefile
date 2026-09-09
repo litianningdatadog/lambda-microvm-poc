@@ -4,21 +4,26 @@ HOOKS_PORT       := 9000
 BASE_PATH        := /aws/lambda-microvms/runtime/v1
 HOST             := http://localhost:$(PORT)
 HOOKS_HOST       := http://localhost:$(HOOKS_PORT)
-DD_TRACE_JS_REPO := /Users/tianning.li/DataDog/dd-trace-js
+# Old local-tgz tracer build path, kept for easy revert:
+# DD_TRACE_JS_REPO := /Users/tianning.li/DataDog/dd-trace-js
 
 .PHONY: build build-local start stop check
 
 build:
-	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
-	cd $(DD_TRACE_JS_REPO) && npm pack
-	cp $(DD_TRACE_JS_REPO)/dd-trace-*.tgz dd-trace-local.tgz
-	docker build --build-arg DD_TRACE_TGZ=dd-trace-local.tgz -t $(IMAGE) .
+	# Old local serverless-init copy path, kept for easy revert:
+	# cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
+	# cd $(DD_TRACE_JS_REPO) && npm pack
+	# cp $(DD_TRACE_JS_REPO)/dd-trace-*.tgz dd-trace-local.tgz
+	# docker build --build-arg DD_TRACE_TGZ=dd-trace-local.tgz -t $(IMAGE) .
+	docker build -t $(IMAGE) .
 
 build-local:
-	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
-	cd $(DD_TRACE_JS_REPO) && npm pack
-	cp $(DD_TRACE_JS_REPO)/dd-trace-*.tgz dd-trace-local.tgz
-	docker build --build-arg DD_TRACE_TGZ=dd-trace-local.tgz -t $(IMAGE) -f Dockerfile.local .
+	# Old local serverless-init copy path, kept for easy revert:
+	# cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
+	# cd $(DD_TRACE_JS_REPO) && npm pack
+	# cp $(DD_TRACE_JS_REPO)/dd-trace-*.tgz dd-trace-local.tgz
+	# docker build --build-arg DD_TRACE_TGZ=dd-trace-local.tgz -t $(IMAGE) -f Dockerfile.local .
+	docker build -t $(IMAGE) -f Dockerfile.local .
 
 start:
 	docker run --rm -e DD_API_KEY=$$DD_API_KEY -d -p $(PORT):$(PORT) -p $(HOOKS_PORT):$(HOOKS_PORT) --name $(IMAGE) $(IMAGE)

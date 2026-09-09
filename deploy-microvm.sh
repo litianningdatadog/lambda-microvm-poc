@@ -202,6 +202,7 @@ EOF
 # forwarding to the user app — a deliberate breaking change matching AWS's
 # own per-hook opt-in model. Set all six true here to keep this dev kit's
 # previous all-hooks-forward behavior.
+# DD_TRACE_DEBUG intentionally omitted; JSON here-docs cannot contain comments.
 ENV_VARS_JSON=$(cat <<'EOF'
 {
   "DD_SITE":              "datadoghq.com",
@@ -214,7 +215,6 @@ ENV_VARS_JSON=$(cat <<'EOF'
   "DD_TRACE_ENABLED":     "true",
   "DD_TRACE_AGENT_URL":   "http://localhost:8126",
   "DD_TRACE_STARTUP_LOGS": "true",
-  "DD_TRACE_DEBUG":       "true",
   "DD_REMOTE_CONFIGURATION_ENABLED": "true",
   "DD_AWS_MICROVM_ENABLE_READY":     "true",
   "DD_AWS_MICROVM_ENABLE_VALIDATE":  "true",

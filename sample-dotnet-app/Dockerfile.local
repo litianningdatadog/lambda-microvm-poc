@@ -25,8 +25,10 @@ COPY --from=build /out /app
 # monitoring-home/ is copied into the build context by `make build-local`.
 COPY monitoring-home/ /dd_dotnet/
 
-COPY serverless-init-linux-arm64 /serverless-init
-RUN chmod +x /serverless-init
+# Old local serverless-init copy path, kept for easy revert:
+# COPY serverless-init-linux-arm64 /serverless-init
+# RUN chmod +x /serverless-init
+COPY --from=datadog/serverless-init:1.10.4 /datadog-init /serverless-init
 
 EXPOSE 8080
 EXPOSE 9000

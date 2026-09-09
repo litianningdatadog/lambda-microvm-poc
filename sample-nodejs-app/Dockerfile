@@ -8,21 +8,27 @@ RUN dnf install -y \
     vim-enhanced nano wget unzip file \
     && dnf clean all
 
-COPY package.json .
-RUN npm install --omit=dev
-#RUN npm install --prefix /dd_tracer/node dd-trace  --save
+# Old local-tgz tracer install path, kept for easy revert:
+# COPY package.json .
+# RUN npm install --omit=dev
+# #RUN npm install --prefix /dd_tracer/node dd-trace  --save
+# ARG DD_TRACE_TGZ=dd-trace-local.tgz
+# COPY ${DD_TRACE_TGZ} /tmp/dd-trace-local.tgz
+# RUN npm install --prefix /dd_tracer/node /tmp/dd-trace-local.tgz
 
-ARG DD_TRACE_TGZ=dd-trace-local.tgz
-COPY ${DD_TRACE_TGZ} /tmp/dd-trace-local.tgz
-RUN npm install --prefix /dd_tracer/node /tmp/dd-trace-local.tgz
+COPY package*.json ./
+RUN npm ci --omit=dev
 
 COPY app.js .
 
-COPY serverless-init-linux-arm64 /serverless-init
-RUN chmod +x /serverless-init
+# Old local serverless-init copy path, kept for easy revert:
+# COPY serverless-init-linux-arm64 /serverless-init
+# RUN chmod +x /serverless-init
+COPY --from=datadog/serverless-init:1.10.4 /datadog-init /serverless-init
 
 EXPOSE 8080
 
+ENV NODE_OPTIONS="--require dd-trace/init"
 ENV DD_SERVICE=sample-nodejs-app
 ENV DD_SOURCE=nodejs
 ENV DD_LOGS_ENABLED=true

@@ -8,11 +8,13 @@ HOOKS_HOST       := http://localhost:$(HOOKS_PORT)
 .PHONY: build build-local start stop check
 
 build:
-	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
+	# Old local serverless-init copy path, kept for easy revert:
+	# cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	docker build -t $(IMAGE) .
 
 build-local:
-	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
+	# Old local serverless-init copy path, kept for easy revert:
+	# cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	docker build -f Dockerfile.local -t $(IMAGE) .
 
 start:

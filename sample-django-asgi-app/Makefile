@@ -4,8 +4,9 @@ HOOKS_PORT       := 9000
 BASE_PATH        := /aws/lambda-microvms/runtime/v1
 HOST             := http://localhost:$(PORT)
 HOOKS_HOST       := http://localhost:$(HOOKS_PORT)
-SERVERLESS_INIT        := /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64
-SERVERLESS_INIT_NAME   := $(notdir $(SERVERLESS_INIT))
+# Old local serverless-init copy path, kept for easy revert:
+# SERVERLESS_INIT        := /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64
+# SERVERLESS_INIT_NAME   := $(notdir $(SERVERLESS_INIT))
 DD_TRACE_PY_WHEEL      := /Users/tianning.li/DataDog/dd-trace-py/dist/ddtrace-4.15.0rc2-cp312-cp312-linux_aarch64.whl
 DD_TRACE_PY_WHEEL_NAME := $(notdir $(DD_TRACE_PY_WHEEL))
 
@@ -15,14 +16,16 @@ test:
 	python3 -m unittest discover -s . -p 'test_*.py'
 
 build:
-	cp $(SERVERLESS_INIT) .
+	# Old local serverless-init copy path, kept for easy revert:
+	# cp $(SERVERLESS_INIT) .
 	cp $(DD_TRACE_PY_WHEEL) .
 	docker build \
 		--build-arg DD_TRACE_WHEEL=$(DD_TRACE_PY_WHEEL_NAME) \
 		-t $(IMAGE) .
 
 build-local:
-	cp $(SERVERLESS_INIT) .
+	# Old local serverless-init copy path, kept for easy revert:
+	# cp $(SERVERLESS_INIT) .
 	cp $(DD_TRACE_PY_WHEEL) .
 	docker build \
 		--build-arg DD_TRACE_WHEEL=$(DD_TRACE_PY_WHEEL_NAME) \

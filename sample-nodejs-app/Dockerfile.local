@@ -8,24 +8,31 @@ RUN dnf install -y \
     vim-enhanced nano wget unzip file \
     && dnf clean all
 
-COPY package.json .
-RUN npm install --omit=dev
-
+# Old local-tgz tracer install path, kept for easy revert:
+# COPY package.json .
+# RUN npm install --omit=dev
+#
 # Install dd-trace from a locally packed tgz instead of npm registry.
 # dd-trace-local.tgz is produced by `npm pack` in dd-trace-js and copied
 # into the build context by `make build-local`.
-ARG DD_TRACE_TGZ=dd-trace-local.tgz
-COPY ${DD_TRACE_TGZ} /tmp/dd-trace-local.tgz
-RUN npm install --prefix /dd_tracer/node /tmp/dd-trace-local.tgz
+# ARG DD_TRACE_TGZ=dd-trace-local.tgz
+# COPY ${DD_TRACE_TGZ} /tmp/dd-trace-local.tgz
+# RUN npm install --prefix /dd_tracer/node /tmp/dd-trace-local.tgz
+
+COPY package*.json ./
+RUN npm ci --omit=dev
 
 COPY app.js .
 
-COPY serverless-init-linux-arm64 /serverless-init
-RUN chmod +x /serverless-init
+# Old local serverless-init copy path, kept for easy revert:
+# COPY serverless-init-linux-arm64 /serverless-init
+# RUN chmod +x /serverless-init
+COPY --from=datadog/serverless-init:1.10.4 /datadog-init /serverless-init
 
 EXPOSE 8080
 EXPOSE 9000
 
+ENV NODE_OPTIONS="--require dd-trace/init"
 ENV AWS_LAMBDA_MICROVM_IMAGE_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:sample-nodejs-app
 ENV DD_SITE=datadoghq.com
 ENV DD_SERVICE=sample-nodejs-app

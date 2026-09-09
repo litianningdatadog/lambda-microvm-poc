@@ -20,7 +20,8 @@ RUN_FLAGS := -p 8080:8080 -p 9000:9000 \
 .PHONY: build run runfg runbg runwithlog readlog stop _rm
 
 build:
-	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
+	# Old local serverless-init copy path, kept for easy revert:
+	# cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	@[ -f .dd-env ] || echo "# placeholder — set DD_API_KEY in your shell or .dd-env" > .dd-env
 	docker build -t $(IMAGE) .
 

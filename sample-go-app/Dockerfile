@@ -17,8 +17,10 @@ RUN dnf install -y \
 
 COPY --from=build /out/server /app/server
 
-COPY serverless-init-linux-arm64 /serverless-init
-RUN chmod +x /serverless-init
+# Old local serverless-init copy path, kept for easy revert:
+# COPY serverless-init-linux-arm64 /serverless-init
+# RUN chmod +x /serverless-init
+COPY --from=datadog/serverless-init:1.10.4 /datadog-init /serverless-init
 
 EXPOSE 8080
 

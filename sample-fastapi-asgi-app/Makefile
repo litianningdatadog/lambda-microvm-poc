@@ -13,14 +13,16 @@ test:
 	python3 -m unittest discover -s . -p 'test_*.py'
 
 build:
-	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
+	# Old local serverless-init copy path, kept for easy revert:
+	# cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	cp $(DD_TRACE_PY_WHEEL) .
 	docker build \
 		--build-arg DD_TRACE_WHEEL=$(DD_TRACE_PY_WHEEL_NAME) \
 		-t $(IMAGE) .
 
 build-local:
-	cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
+	# Old local serverless-init copy path, kept for easy revert:
+	# cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	cp $(DD_TRACE_PY_WHEEL) .
 	docker build \
 		--build-arg DD_TRACE_WHEEL=$(DD_TRACE_PY_WHEEL_NAME) \
