@@ -1,0 +1,35 @@
+FROM --platform=linux/arm64 public.ecr.aws/lambda/microvms:al2023-minimal
+
+WORKDIR /app
+
+RUN dnf install -y \
+    python3.12 python3.12-pip \
+    lsof net-tools procps-ng htop iproute iputils \
+    vim-enhanced nano wget unzip file \
+    && dnf clean all
+
+COPY requirements.txt .
+RUN python3.12 -m pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+
+# Old local serverless-init copy path, kept for easy revert:
+# COPY serverless-init-linux-arm64 /serverless-init
+# RUN chmod +x /serverless-init
+COPY --from=datadog/serverless-init:1.10.4 /datadog-init /serverless-init
+
+EXPOSE 8080
+EXPOSE 9000
+ENV AWS_LAMBDA_MICROVM_IMAGE_ARN=arn:aws:lambda:us-east-1:123456789012:microvm:sample-flask-app
+ENV DD_SITE=datadoghq.com
+ENV DD_SERVICE=sample-flask-app-without-tracer
+ENV DD_SOURCE=python
+ENV PYTHONUNBUFFERED=1
+ENV DD_VERSION=1
+ENV DD_ENV=devmicrovm
+ENV DD_LOGS_ENABLED=true
+ENV DD_LOG_LEVEL=debug
+ENV DD_AWS_MICROVM_USER_APP_PORT=8080
+
+ENTRYPOINT ["/serverless-init"]
+CMD ["python3.12", "app.py"]

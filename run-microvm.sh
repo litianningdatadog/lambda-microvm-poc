@@ -123,7 +123,7 @@ RUN_JSON=$(awsv aws lambda-microvms run-microvm \
   --image-version "$IMAGE_VERSION" \
   --execution-role-arn "$EXECUTION_ROLE_ARN" \
   "${connector_args[@]}" \
-  --idle-policy '{"autoResumeEnabled":true,"maxIdleDurationSeconds":900,"suspendedDurationSeconds":300}' \
+  --idle-policy '{"autoResumeEnabled":true,"maxIdleDurationSeconds":3600,"suspendedDurationSeconds":300}' \
   "${AWS_ARGS[@]}" \
   --output json) || {
   log "ERROR: run-microvm failed (see error above)"
