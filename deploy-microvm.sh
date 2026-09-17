@@ -44,6 +44,7 @@ set +x
 #   ENDPOINT         default: gamma cell01 control-plane URL
 #   POLL_INTERVAL    default: 10 (seconds)
 #   POLL_TIMEOUT     default: 1800 (seconds, 30 min)
+#   DD_SITE          default: datadoghq.com (baked into the MicroVM environment)
 #   APP_PORT         default: 8080  (exported at the end; X-aws-proxy-port value)
 #   SHELL_ENABLED    default: true  (attaches SHELL_INGRESS connector at run time)
 #   EXECUTION_ROLE_ARN   default: the microvm-build-role (confirmed working in
@@ -98,6 +99,7 @@ S3_BUCKET="${S3_BUCKET:-$APP_NAME}"
 # `update-microvm-image` instead of creating a new image every time.
 IMAGE_NAME="${IMAGE_NAME:-${APP_NAME:0:30}}"
 REGION="${REGION:-us-east-2}"
+DD_SITE="${DD_SITE:-datadoghq.com}"
 BUILD_ROLE_ARN="${BUILD_ROLE_ARN:-arn:aws:iam::425362996713:role/microvm-build-role}"
 BASE_IMAGE_ARN="${BASE_IMAGE_ARN:-arn:aws:lambda:${REGION}:aws:microvm-image:al2023-1}"
 ENDPOINT="${ENDPOINT:-https://cell01.${REGION}.gamma.fe.kepler-analytics.aws.dev}"
@@ -226,6 +228,7 @@ ENV_VARS_JSON=$(cat <<'EOF'
 }
 EOF
 )
+ENV_VARS_JSON=$(printf '%s' "$ENV_VARS_JSON" | jq --arg v "$DD_SITE" '.DD_SITE = $v')
 if [[ -n "${DD_API_KEY:-}" ]]; then
   ENV_VARS_JSON=$(printf '%s' "$ENV_VARS_JSON" | jq --arg v "$DD_API_KEY" '.DD_API_KEY = $v')
 fi
