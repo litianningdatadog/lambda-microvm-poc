@@ -7,7 +7,7 @@ HOOKS_HOST       := http://localhost:$(HOOKS_PORT)
 # Old local serverless-init copy path, kept for easy revert:
 # SERVERLESS_INIT        := /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64
 # SERVERLESS_INIT_NAME   := $(notdir $(SERVERLESS_INIT))
-DD_TRACE_PY_WHEEL      := /Users/tianning.li/DataDog/dd-trace-py/dist/ddtrace-4.15.0rc2-cp312-cp312-linux_aarch64.whl
+DD_TRACE_PY_WHEEL      := /Users/tianning.li/DataDog/dd-trace-py/dist/ddtrace-4.16.0rc1-cp312-cp312-linux_aarch64.whl
 DD_TRACE_PY_WHEEL_NAME := $(notdir $(DD_TRACE_PY_WHEEL))
 
 .PHONY: test build build-local start stop check

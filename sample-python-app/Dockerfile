@@ -10,7 +10,7 @@ RUN dnf install -y \
 
 COPY requirements.txt .
 RUN python3.12 -m pip install --no-cache-dir -r requirements.txt
-ARG DD_TRACE_WHEEL=ddtrace-4.15.0rc2-cp312-cp312-linux_aarch64.whl
+ARG DD_TRACE_WHEEL=ddtrace-4.16.0rc1-cp312-cp312-linux_aarch64.whl
 COPY ${DD_TRACE_WHEEL} /tmp/${DD_TRACE_WHEEL}
 RUN python3.12 -m pip install --target /dd_tracer/python/ --no-cache-dir /tmp/${DD_TRACE_WHEEL} \
     && rm -f /tmp/${DD_TRACE_WHEEL}
