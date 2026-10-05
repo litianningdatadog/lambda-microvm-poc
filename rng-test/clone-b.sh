@@ -23,7 +23,7 @@ set +x
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" && pwd)"   # rng-test/
-PARENT_DIR="$(dirname -- "$SCRIPT_DIR")"            # lambda-microvm-doc/
+PARENT_DIR="$(dirname -- "$SCRIPT_DIR")"            # lambda-microvm-poc/
 REGION="${REGION:-us-east-2}"
 APP_PORT="${APP_PORT:-8080}"
 EXECUTION_ROLE_ARN="${EXECUTION_ROLE_ARN:-arn:aws:iam::425362996713:role/microvm-build-role}"

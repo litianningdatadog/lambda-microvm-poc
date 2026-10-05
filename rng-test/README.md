@@ -47,7 +47,7 @@ export DD_API_KEY=<your-dd-api-key>        # placeholder — do not commit a rea
 export S3_BUCKET=microvm-rng-test
 export REGION=us-east-2
 
-# --- build + deploy (run from lambda-microvm-doc/) ---
+# --- build + deploy (run from lambda-microvm-poc/) ---
 ( cd rng-test && make build )              # fast pre-deploy gate: node --check
 ./deploy-microvm.sh rng-test               # builds image + launches clone A; prints image ARN + token file
 
