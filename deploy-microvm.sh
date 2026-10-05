@@ -51,9 +51,8 @@ set +x
 #                                  prod despite the schema saying the role must
 #                                  trust lambda.amazonaws.com)
 #
-# Requires `awsv` to resolve to AWS CLI v2 (as used throughout CLAUDE.md) and
-# `jq` for parsing the multi-part authToken response. We source ~/.zshrc below
-# to pick up awsv — which is why this script is `#!/usr/bin/env zsh`, not bash.
+# Requires `aws-vault` with the sso-serverless-sandbox-account-admin profile,
+# AWS CLI v2, and `jq` for parsing the multi-part authToken response.
 #
 # The lambda-microvms service is now built into AWS CLI v2 (GA) — no
 # `aws configure add-model` step needed.
@@ -61,21 +60,15 @@ set +x
 
 APP_DIR="${1:?Usage: $0 <app-dir>}"
 
-# Resolve to absolute BEFORE sourcing ~/.zshrc — the rc file may `cd`
-# elsewhere (nvm auto-switch, direnv hooks, etc.), which would break
-# later relative-path lookups.
+# Resolve to absolute early so later relative-path lookups are stable.
 APP_DIR="$(cd "$APP_DIR" && pwd)"
 
-# Pick up the `awsv` function/alias from the user's zsh config.
-# Caveat: if ~/.zshrc short-circuits for non-interactive shells
-# (`[[ $- != *i* ]] && return`), awsv won't be defined here. In that case,
-# move the awsv definition into ~/.zshenv, which loads unconditionally.
-[[ -f "$HOME/.zshrc" ]] && source "$HOME/.zshrc"
+awsv() {
+  AWS_PAGER="" aws-vault exec sso-serverless-sandbox-account-admin -- "$@"
+}
 
-if ! whence -w awsv >/dev/null 2>&1; then
-  print -u2 "ERROR: 'awsv' is not defined after sourcing ~/.zshrc."
-  print -u2 "       Define it in ~/.zshenv (or invoke this script from an"
-  print -u2 "       interactive shell where awsv is already loaded)."
+if ! command -v aws-vault >/dev/null 2>&1; then
+  print -u2 "ERROR: 'aws-vault' is required."
   exit 1
 fi
 if ! command -v jq >/dev/null 2>&1; then
