@@ -98,10 +98,18 @@ def health():
 
 @app.route(f"{BASE_PATH}/validate", methods=["POST"])
 def validate():
-    """Handle validate hook from Lambda MicroVMs."""
+    """Handle validate hook from Lambda MicroVMs.
+
+    Runs a mock /execute request in-process so the platform can sample which
+    snapshot pages a real request touches and prefetch them on future runs.
+    Returns 503 on failure so the platform retries until the hook timeout.
+    """
     with _span("POST", request.path):
         logger.info("validate_hook_called", micro_vm_id=micro_vm_id)
-        return _send_empty()
+        resp = app.test_client().post("/execute", json={"code": "print(1 + 1)"})
+        ok = resp.status_code == 200 and resp.get_json().get("success")
+        logger.info("validate_warmup_done", status=resp.status_code, ok=bool(ok))
+        return _send_empty(200 if ok else 503)
 
 
 @app.route(f"{BASE_PATH}/ready", methods=["POST"])

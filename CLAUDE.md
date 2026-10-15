@@ -332,11 +332,19 @@ Use CSPRNGs: Java `SecureRandom`, Python `secrets`/`random.SystemRandom`, Node.j
 
 ## Operating MicroVMs
 
-**Shell access:** requires `SHELL_INGRESS` attached at run time (see Section 2), then `create-microvm-shell-auth-token` — connect via the AWS console "Connect" button on the MicroVM detail page or a WebSocket client. The official GA docs describe the shell landing directly in the app's container; in this dev kit's environment the shell has opened on the host OS instead, requiring an extra step to reach the app container:
+**Shell access:** requires `SHELL_INGRESS` attached at run time (see Section 2) and `lambda:CreateMicrovmShellAuthToken` on the caller. The shell drops into the same container as the running app (same network namespace, filesystem, and process tree) — an interactive PTY over WebSocket on port 8022. Connect via the AWS console "Connect" button on the MicroVM detail page, or a WebSocket client:
 ```bash
-ctr task ls                                              # find container ID
-ctr task exec -t --exec-id shell <container_id> /bin/sh  # enter container
+# Max 60 min; treat the token as a secret (keep it out of logs/files/shell history)
+TOKEN=$(awsv aws lambda-microvms create-microvm-shell-auth-token \
+  --microvm-identifier <MICROVM_ID> \
+  --expiration-in-minutes 15 \
+  --region us-east-2 \
+  --query 'authToken."X-aws-proxy-auth"' --output text)
+
+websocat "wss://$MICROVM_ENDPOINT/shell" \
+  -H "Sec-WebSocket-Protocol: lambda-microvms.authentication.${TOKEN}, lambda-microvms, lambda-microvms.port.8022"
 ```
+Earlier in this dev kit's environment the shell opened on the host OS instead; if you ever land there, `ctr task ls` then `ctr task exec -t --exec-id shell <container_id> /bin/sh` reaches the app container.
 
 **Logs:** Stream to CloudWatch under `/aws/lambda-microvms/<image-name>`. When using `NO_EGRESS` mode, logs are only accessible via `wscat` directly and are lost on termination.
 

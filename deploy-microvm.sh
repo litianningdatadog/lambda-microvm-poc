@@ -322,7 +322,7 @@ fi
 # run-microvm returns the microvmId AND the per-MicroVM data-plane endpoint in
 # one response — no follow-up get-microvm needed. The endpoint is the host to
 # curl / open WebSockets against (pattern
-# <uuid>.lambda-microvm-gamma.<region>.on.aws), not the control-plane.
+# <microvm>.lambda-microvm.<region>.on.aws), not the control-plane.
 # Run errors (ValidationException / AccessDenied / ResourceNotFound) are
 # deterministic, so on failure the CLI prints the real error to stderr and we
 # exit rather than retrying.
