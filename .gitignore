@@ -59,3 +59,6 @@ Boto3CliV1Artifacts/awscli-bundle.zip
 # Local MicroVM build-context artifacts copied by sample Makefiles.
 /sample-*/serverless-init-linux-arm64
 /sample-*/ddtrace-*.whl
+sample-verify-app/results/
+sample-verify-app/run-all.20261029T201450Z.log
+sample-verify-app/run-all.resume.20261029T222845Z.log
