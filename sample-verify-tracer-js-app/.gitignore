@@ -1,0 +1,5 @@
+node_modules/
+results/
+serverless-init-linux-arm64
+.dd-env
+__pycache__/
