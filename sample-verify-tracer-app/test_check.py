@@ -12,6 +12,9 @@ from unittest.mock import patch
 import check
 from feature_checks import FEATURE_OPERATIONS
 from feature_checks import evaluate_features
+from lifecycle_checks import SCHEMA
+from lifecycle_checks import TELEMETRY_CHECKS
+from lifecycle_checks import required_telemetry_checks
 
 
 class EvaluationTest(unittest.TestCase):
@@ -86,6 +89,7 @@ class EvaluationTest(unittest.TestCase):
         deployment["verification_schema"] = 2
         self.write("deployment.json", deployment)
         self.guest["verification_schema"] = 2
+        self.guest["checks"].update({name: True for name in TELEMETRY_CHECKS})
         self.guest["features"] = {"roots": {case: {} for case in FEATURE_OPERATIONS}}
         self.guest["checks"].update({name: True for name in evaluate_features([], {}, "new-runtime")})
         self.save_guest()
@@ -156,6 +160,36 @@ class EvaluationTest(unittest.TestCase):
         self.assertTrue(result["checks"]["guest_feature_scenarios_present"])
         self.assertTrue(all(result["checks"].values()))
         self.assertIn(check.RSS_CHECK, result["skipped"])
+
+    def test_telemetry_checks_cannot_be_omitted_in_schema_two(self):
+        self.enable_features()
+        for name in TELEMETRY_CHECKS:
+            with self.subTest(name=name):
+                removed = self.guest["checks"].pop(name)
+                self.save_guest()
+                status, result = self.evaluate()
+                self.assertEqual(status, 1)
+                self.assertFalse(result["checks"]["guest_telemetry_scenarios_present"])
+                self.guest["checks"][name] = removed
+
+    def test_schema_three_requires_every_new_telemetry_check(self):
+        self.enable_features()
+        deployment = json.loads((self.results / "deployment.json").read_text())
+        deployment["verification_schema"] = SCHEMA
+        self.write("deployment.json", deployment)
+        self.guest["verification_schema"] = SCHEMA
+        self.guest["checks"].update({name: True for name in required_telemetry_checks(SCHEMA)})
+        self.save_guest()
+        self.assertEqual(self.evaluate()[0], 0)
+        for name in required_telemetry_checks(SCHEMA):
+            with self.subTest(name=name):
+                self.guest["checks"].pop(name)
+                self.save_guest()
+                self.assertEqual(self.evaluate()[0], 1)
+                self.guest["checks"][name] = False
+                self.save_guest()
+                self.assertEqual(self.evaluate()[0], 1)
+                self.guest["checks"][name] = True
 
     def test_diagnostic_copy_does_not_hide_missing_standard_metric(self):
         self.runtime_present = False

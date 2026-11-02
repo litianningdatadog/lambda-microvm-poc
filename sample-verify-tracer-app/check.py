@@ -11,6 +11,8 @@ import urllib.request
 
 from feature_checks import FEATURE_OPERATIONS
 from feature_checks import evaluate_features
+from lifecycle_checks import SCHEMA
+from lifecycle_checks import required_telemetry_checks
 
 
 RSS_CHECK = "datadog_runtime_metrics_new_identity"
@@ -55,6 +57,15 @@ def evaluate(results, output=None, check_runtime_metrics=False):
     evidence = {}
     diagnostics = {}
     skipped = {}
+    schema = deployment.get("verification_schema", 1)
+    if schema >= 2:
+        checks["guest_telemetry_scenarios_present"] = guest.get(
+            "verification_schema"
+        ) == schema and required_telemetry_checks(schema).issubset(guest["checks"])
+    if schema < SCHEMA:
+        skipped["strengthened_telemetry_scenarios"] = (
+            "This deployment predates schema 3 subscriber-membership and native exporter telemetry checks."
+        )
 
     def query(name, expression):
         response = dd("/api/v1/query", {"from": start, "to": end, "query": expression})

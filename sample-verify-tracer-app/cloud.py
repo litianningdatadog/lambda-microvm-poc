@@ -15,6 +15,8 @@ import urllib.parse
 import urllib.request
 import zipfile
 
+from lifecycle_checks import SCHEMA
+
 
 APP = Path(__file__).resolve().parent
 REGION = os.environ.get("REGION", "us-east-2")
@@ -95,6 +97,8 @@ def deploy(results):
             "app.py",
             "features.py",
             "feature_checks.py",
+            "lifecycle_checks.py",
+            "lifecycle_control.py",
             "requirements.txt",
             wheel,
             "serverless-init-linux-arm64",
@@ -174,7 +178,7 @@ def deploy(results):
         "imageName": NAME,
         "region": REGION,
         "verification_id": results.name,
-        "verification_schema": 2,
+        "verification_schema": SCHEMA,
         "runtime_rss_alias": rss_alias or None,
         "start": time.time(),
         "logGroup": f"/aws/lambda-microvms/{NAME}",

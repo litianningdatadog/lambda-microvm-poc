@@ -1,9 +1,7 @@
 """Offline checks for scenario sequencing and lifecycle metric attribution."""
 import contextlib
 import io
-import os
 from pathlib import Path
-import subprocess
 import tempfile
 import unittest
 from unittest.mock import Mock, call, patch
@@ -12,24 +10,37 @@ import check
 import run4
 
 
-class CheckAuthenticationTests(unittest.TestCase):
-    def test_wrapper_uses_application_key_and_forwards_check_arguments(self):
+class EventAttributionTests(unittest.TestCase):
+    def load(self, lines, run, vm_id=""):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            shim = root / "dd-auth"
-            shim.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$AUTH_ARGS"\n')
-            shim.chmod(0o755)
-            args_file = root / "args.txt"
-            env = {**os.environ, "PATH": directory + os.pathsep + os.environ["PATH"],
-                   "AUTH_ARGS": str(args_file), "DD_AUTH_DOMAIN": "dddev.datadoghq.com"}
-            result = subprocess.run(
-                ["zsh", str(Path(__file__).with_name("verify.sh")), "check", "run2", "microvm-test"],
-                env=env, capture_output=True, text=True, check=True,
-            )
-            args = args_file.read_text().splitlines()
-            self.assertEqual(args[:4], ["--domain", "dddev.datadoghq.com", "--force-app-key", "--"])
-            self.assertEqual(args[-2:], ["run2", "microvm-test"])
-            self.assertIn("auth=application-key", result.stdout)
+            Path(directory, "events.log").write_text("\n".join(lines) + "\n")
+            with patch.object(check, "SCRIPT_DIR", directory):
+                return check.load_events(run, vm_id)
+
+    def test_interleaved_deploys_do_not_enable_another_images_control(self):
+        for run, variant in (("run1", "long"), ("run3", "default"),
+                             ("run5", "fwd"), ("run6", "fwd")):
+            with self.subTest(run=run):
+                other = "fwd" if variant == "long" else "long"
+                expected = f"2026-11-01T00:00:00Z deploy {variant} image:5.0 spans_per_sec=0"
+                lines = [
+                    expected,
+                    f"2026-11-01T00:00:01Z deploy {other} image:45.0 distribution_control=true",
+                    f"2026-11-01T00:00:02Z {run} microvm-test run-microvm called (image {variant})",
+                    f"2026-11-01T00:00:03Z deploy {variant} image:6.0 distribution_control=true",
+                    f"2026-11-01T00:00:04Z {run} microvm-test reached TERMINATED",
+                ]
+                for vm_id in ("", "microvm-test"):
+                    selected_id, _, _, deploy = self.load(lines, run, vm_id)
+                    self.assertEqual(selected_id, "microvm-test")
+                    self.assertEqual(deploy, expected)
+
+    def test_no_matching_deploy_does_not_borrow_another_images_capabilities(self):
+        _, _, _, deploy = self.load([
+            "2026-11-01T00:00:00Z deploy long image:45.0 distribution_control=true",
+            "2026-11-01T00:00:01Z run5 microvm-test run-microvm called (image fwd)",
+        ], "run5")
+        self.assertEqual(deploy, "")
 
 
 class ShortGapTests(unittest.TestCase):

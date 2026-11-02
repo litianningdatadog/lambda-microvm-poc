@@ -9,6 +9,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from lifecycle_checks import SCHEMA
+from lifecycle_checks import required_telemetry_checks
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -43,6 +46,9 @@ def main():
         post("/aws/lambda-microvms/runtime/v1/run", timeout=2)
         elapsed = time.monotonic() - start
         result = post("/verify")
+        result["checks"]["required_telemetry_scenarios_present"] = result.get(
+            "verification_schema"
+        ) == SCHEMA and required_telemetry_checks(SCHEMA).issubset(result["checks"])
         result["run_seconds"] = elapsed
         result["checks"]["run_under_one_second"] = elapsed < 1
         result["passed"] = all(result["checks"].values())

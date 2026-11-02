@@ -116,6 +116,18 @@ active intervals, and exits 1 on any FAIL:
 | `distribution` | Custom distribution sample count = printed tick spans (±1); the final suspend's open bucket is `KNOWN`. Skipped for older images that lack the control |
 | `logs` | Every tick seq printed arrived in Datadog once |
 
+Deploy-time expectations (including burst rate and distribution-control availability) come
+from the latest deployment **of the run's image variant** before that VM started, not
+the latest deployment of any image. `run5`/`run6` use `fwd`, `run3` uses `default`,
+and the other runs use `long`.
+
+The 2026-11-01 run5 VM `microvm-25accf87-90b5-304e-86bf-4d5429607caf` used `fwd` 5.0,
+whose packaged app did not emit `mvmtest.distribution`. The checker previously borrowed
+`distribution_control=true` from `long` 45.0 and falsely failed all distribution buckets.
+That old image now reports the control as `INFO`, not a validated PASS. To validate
+distribution delivery across resume, deploy the current app with `./verify.sh deploy fwd`,
+run `./verify.sh run5`, wait 180s for ingestion, then run `./verify.sh check run5`.
+
 Ticks printed before the `run` hook or after the final flush started are reported as `INFO unsent`
 and not checked: no hook sends them. Lifecycle distribution counts are queried over complete
 10s buckets and checked against the CloudWatch hooks. A final suspend's unsent count is

@@ -23,6 +23,9 @@ from features import span_identity
 from flask import Flask
 from flask import jsonify
 from flask import request
+from lifecycle_checks import SCHEMA
+from lifecycle_checks import exporter_metrics
+from lifecycle_checks import subscriber_count
 import msgpack
 
 from ddtrace import __version__
@@ -247,6 +250,7 @@ def prepare():
     state["thread"].start()
     if not state["entered"].wait(5):
         return jsonify(error="configure() did not enter the writer drain"), 500
+    state["pre_run_writer"] = tracer._span_aggregator.writer
     state["run_start"] = time.monotonic()
     return jsonify(old_runtime_id=state["old_id"], drain_held=True)
 
@@ -299,6 +303,9 @@ def verify():
         "20956_worker_identity": telemetry_writer._worker_runtime_id == new_id,
         "20956_old_exporter_unsubscribed": not old._telemetry_worker_subscribed,
         "20956_new_exporter_subscribed": current._telemetry_worker_subscribed,
+        "20956_retired_callback_removed": subscriber_count(telemetry_writer, old) == 0,
+        "20956_pre_run_callback_removed": subscriber_count(telemetry_writer, state["pre_run_writer"]) == 0,
+        "20956_current_callback_once": subscriber_count(telemetry_writer, current) == 1,
         "20957_collector_identity": RuntimeWorker._instance._collectors_runtime_id == new_id,
         "20957_wall_baseline_reset": baselines["wall"] >= state["run_start"],
         "20957_cpu_baseline_reset": sum(baselines["cpu"].values()) > sum(state["before"]["cpu"].values()),
@@ -323,10 +330,15 @@ def verify():
     telemetry_writer.periodic(force_flush=True)
     # UDP intake and native exporter callbacks complete on separate threads.
     deadline = time.monotonic() + 5
+    next_flush = time.monotonic() + 0.25
     while time.monotonic() < deadline:
+        if time.monotonic() >= next_flush:
+            telemetry_writer.periodic(force_flush=True)
+            next_flush = time.monotonic() + 0.25
         with records_lock:
             spans = [span for trace in records["traces"] for span in trace]
             metrics = list(records["dogstatsd"])
+            native_metrics = exporter_metrics(records["telemetry"], new_id)
             telemetry_received = any(
                 payload.get("runtime_id") == new_id and "verify.after_refresh" in json.dumps(payload)
                 for payload in records["telemetry"]
@@ -335,6 +347,7 @@ def verify():
             any(s["name"] == "verify.fresh" for s in spans)
             and rss_packets_for_runtime(metrics, new_id)
             and telemetry_received
+            and all(value > 0 for value in native_metrics.values())
             and all(evaluate_features(spans, feature_evidence, new_id).values())
         ):
             break
@@ -353,13 +366,16 @@ def verify():
             ),
             "20957_new_metrics_received": bool(rss_packets_for_runtime(metrics, new_id)),
             "20956_new_telemetry_received": telemetry_received,
+            "20956_exporter_requests_received": native_metrics["trace_api.requests"] > 0,
+            "20956_exporter_responses_received": native_metrics["trace_api.responses"] > 0,
             "intake_decode_succeeded": not records["errors"],
         }
     )
     checks["run_under_one_second"] = state.get("hook_elapsed", float("inf")) < 1
     checks.update(evaluate_features(spans, feature_evidence, new_id))
     result = dict(
-        verification_schema=2,
+        verification_schema=SCHEMA,
+        exporter_telemetry=native_metrics,
         passed=all(checks.values()),
         checks=checks,
         old_runtime_id=state["old_id"],

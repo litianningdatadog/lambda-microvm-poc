@@ -27,7 +27,13 @@ check:
 	python3 verify.py --url "http://localhost:$(PORT)" --output "$(OUTPUT)"
 
 test:
-	python3 -m unittest -v test_check test_feature_checks
+	python3 -m unittest -v test_check test_feature_checks test_lifecycle_checks
 
 package: prepare
-	zip ../sample-verify-tracer-app.zip Dockerfile app.py features.py feature_checks.py requirements.txt "$(WHEEL_NAME)" serverless-init-linux-arm64
+	zip ../sample-verify-tracer-app.zip Dockerfile app.py features.py feature_checks.py lifecycle_checks.py lifecycle_control.py requirements.txt "$(WHEEL_NAME)" serverless-init-linux-arm64
+
+# Runs separate processes so mode detection happens before ddtrace is imported.
+.PHONY: check-lifecycle
+check-lifecycle:
+	docker run --rm -e AWS_LAMBDA_MICROVM_IMAGE_ARN= --entrypoint python3.12 "$(IMAGE)" lifecycle_control.py regular
+	docker run --rm -e AWS_LAMBDA_MICROVM_IMAGE_ARN=local-verification --entrypoint python3.12 "$(IMAGE)" lifecycle_control.py blocked-send

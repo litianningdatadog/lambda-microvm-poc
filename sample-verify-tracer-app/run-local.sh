@@ -68,6 +68,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 step 00-build make build || exit "$?"
+step 05-lifecycle-controls make check-lifecycle || exit "$?"
 step 10-start make start || exit "$?"
 started=1
 # Evaluate even when the driver fails, preserving both the execution error and verdict.

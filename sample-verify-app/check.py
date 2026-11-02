@@ -35,6 +35,10 @@ API = os.environ.get("DD_API_URL", "https://api.datadoghq.com")
 REGION = os.environ.get("REGION", "us-east-2")
 PROFILE = os.environ.get("AWS_VAULT_PROFILE", "sso-serverless-sandbox-account-admin")
 BUCKET = 10
+RUN_VARIANTS = {
+    "run1": "long", "run2": "long", "run3": "default",
+    "run4": "long", "run5": "fwd", "run6": "fwd",
+}
 
 results = []  # (status, name, detail)
 
@@ -59,8 +63,9 @@ def parse_ts(s):
 # --- inputs -----------------------------------------------------------------
 
 def load_events(run, vm_id):
-    """Returns (vm_id, first event ts, last event ts, latest deploy line before the run)."""
-    lines = open(os.path.join(SCRIPT_DIR, "events.log")).read().splitlines()
+    """Returns VM ID, event bounds, and the latest matching image deploy before the run."""
+    with open(os.path.join(SCRIPT_DIR, "events.log")) as events:
+        lines = events.read().splitlines()
     if not vm_id:
         ids = [l.split()[2] for l in lines if len(l.split()) > 2 and l.split()[1] == run]
         if not ids:
@@ -70,7 +75,9 @@ def load_events(run, vm_id):
     if not mine:
         sys.exit(f"{vm_id} not in events.log")
     t0, t1 = parse_ts(mine[0].split()[0]), parse_ts(mine[-1].split()[0])
-    deploy = next((l for l in reversed(lines) if " deploy " in l and parse_ts(l.split()[0]) < t0), "")
+    variant = RUN_VARIANTS[run]
+    deploy = next((l for l in reversed(lines)
+                   if l.split()[1:3] == ["deploy", variant] and parse_ts(l.split()[0]) < t0), "")
     return vm_id, t0, t1, deploy
 
 
@@ -336,10 +343,10 @@ def check_lifecycle_metrics(lifecycle, vm_id, start, end):
 # --- main -------------------------------------------------------------------
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in ("run1", "run2", "run3", "run4", "run5", "run6"):
+    if len(sys.argv) < 2 or sys.argv[1] not in RUN_VARIANTS:
         sys.exit("usage: check.py <run1|run2|run3|run4|run5|run6> [vm-id]")
     run = sys.argv[1]
-    variant = {"run3": "default", "run5": "fwd", "run6": "fwd"}.get(run, "long")
+    variant = RUN_VARIANTS[run]
     vm_id, t0, t1, deploy = load_events(run, sys.argv[2] if len(sys.argv) > 2 else "")
     spans_per_sec = int(m.group(1)) if (m := re.search(r"spans_per_sec=(\d+)", deploy)) else 0
     log_group = f"/aws/lambda-microvms/{SERVICE}-{variant}"

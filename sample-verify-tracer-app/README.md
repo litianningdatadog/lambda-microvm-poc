@@ -64,6 +64,11 @@ dd-auth --domain dddev.datadoghq.com -- python3 check.py \
 
 Run the evaluator regression tests with `make test`; they need no credentials.
 
+New deployments use schema 3. The evaluator requires every #20956 assertion;
+a missing check fails even if the guest reports `passed=true`. Schema 2 results
+must include their original five telemetry checks, and older deployments are
+explicitly marked as lacking the strengthened schema 3 coverage.
+
 ### Environment overrides
 
 | Variable | Default / purpose |
@@ -113,7 +118,7 @@ The app never calls `refresh_identity()` directly.
 | --- | --- |
 | [#20955](https://github.com/DataDog/dd-trace-py/pull/20955) | Old writer discarded; buffered, open, and retained-context spans absent from captured payloads; fresh trace uses the new runtime ID. |
 | [#21429](https://github.com/DataDog/dd-trace-py/pull/21429) | `/run` and span work finish in under one second while retirement is held; retirement finishes after release. |
-| [#20956](https://github.com/DataDog/dd-trace-py/pull/20956) | Worker and identity replaced, old exporter unsubscribed, new exporter subscribed, telemetry marker emitted under the new ID. |
+| [#20956](https://github.com/DataDog/dd-trace-py/pull/20956) | Worker and identity replaced; both obsolete writer callbacks absent; current callback registered exactly once; telemetry marker and native exporter request/response metrics emitted under the new ID. |
 | [#20957](https://github.com/DataDog/dd-trace-py/pull/20957) | CPU, wall-clock, and GC baselines reseeded; collector identity updated; runtime metrics emitted with the new ID. |
 
 The HTTP intake on 18126 records real v0.4 trace and telemetry payloads and
@@ -158,8 +163,8 @@ distribution and gauge controls were queryable. This isolates the current gap to
 handling of the standard metric name; it does not establish a tracer refresh bug
 or prove a particular backend cause. No organization metric configuration is changed.
 
-The drain pause verifies Python lock ownership, not a native exporter stuck in
-network retries. Private probes intentionally match this wheel. Old-ID telemetry
+The drain pause verifies Python lock ownership. Separate local controls below
+exercise a native HTTP send held by a controlled intake. Private probes intentionally match this wheel. Old-ID telemetry
 can still flush through the documented native `stop()` fallback. Native stats
 worker cleanup, downgrade/shutdown races, blocked DogStatsD sends, suspend/resume,
 and detailed GC pause/context-switch assertions remain future scenarios.
@@ -184,7 +189,7 @@ the expected service. `verification.json` includes `features` and `feature_spans
 so parent IDs, errors, tags, and context assertions can be inspected directly.
 Expected exception and HTTP 500 messages in the guest log are part of the tests.
 
-For new deployments (`verification_schema=2`), `check.py` requires every feature
+For new deployments (`verification_schema=3`), `check.py` requires every feature
 assertion to be present, queries APM hit metrics for all six operations, and
 requires an error metric for `verify.feature.error`. A missing feature trace or
 error metric fails evaluation. Re-evaluating older results reports the expanded
@@ -211,3 +216,37 @@ Forwarding to Datadog is disabled in local mode. Results are local evidence only
 Individual local steps remain `make build`, `make start PORT=18080`,
 `make check PORT=18080`, and `make stop`. `make package` copies both artifacts
 and produces an archive for manual deployment.
+
+## Subscription and blocked-send controls
+
+After rebuilding the wheel from the reviewed tracer revision:
+
+```sh
+make build
+make check-lifecycle
+```
+
+`run-local.sh` runs these controls before the full local restore smoke test.
+Each control starts a fresh process and uses real native workers/exporters with
+an in-process HTTP intake. Nothing is forwarded to Datadog.
+
+- `regular` runs without MicroVM detection, concurrently shuts down two writers,
+  rebuilds telemetry through the test-session API, and checks that the surviving
+  exporter receives the replacement native handle. Stopped writers retain their
+  weak subscriptions until collection; pending-worker locks must be absent.
+- `blocked-send` enables MicroVM detection, holds a real native trace HTTP send
+  at the intake, and explicitly refreshes identity while it is blocked. Refresh
+  must return in under one second, leaving the replacement worker pending. After
+  release, the next send must apply that handle and emit native `trace_api.*`
+  request/response metrics under the new runtime ID. This is a local lifecycle
+  control; the AWS scenario continues to rely exclusively on platform hooks.
+
+The restored guest inspects weak callback membership directly, including the
+writer retired by `configure()` and the writer active immediately before `/run`.
+Exporter telemetry checks require the `src_library:libdatadog` tag and parse
+both direct metric messages and message batches. A Python marker, an old runtime
+ID, or a bookkeeping flag alone cannot satisfy them.
+
+Wheel hashes identify the tested artifact; they do not prove its source revision.
+Rebuild the wheel after tracer edits and retain the source commit alongside the
+run's wheel hash. An older wheel with the same version string is insufficient.
