@@ -92,13 +92,22 @@ def evaluate_features(spans, evidence, runtime_id):
         )
     http = evidence.get("http", {})
     http_root = roots.get("http", {})
-    http_spans = [span for span in spans if str(span["trace_id"]) == http_root.get("trace_id")]
+    # A transport retry repeats IDs; only distinct spans indicate reinstrumentation.
+    http_spans = [span for span in by_id.values() if str(span["trace_id"]) == http_root.get("trace_id")]
     clients = [span for span in http_spans if span.get("meta", {}).get("component") == "requests"]
     checks["feature_requests_instrumentation"] = len(clients) == 2 and all(
         str(span.get("parent_id")) == http_root.get("span_id") for span in clients
     )
     server = exported(http.get("server", {}))
     client_ids = {str(span["span_id"]) for span in clients}
+    checks["feature_http_single_instrumentation"] = len(clients) == 2 and all(
+        sum(
+            span.get("meta", {}).get("component") == "flask"
+            and str(span.get("parent_id")) == str(client["span_id"])
+            for span in http_spans
+        ) == 1
+        for client in clients
+    )
     checks["feature_flask_distributed_parenting"] = (
         bool(server)
         and str(server.get("trace_id")) == http_root.get("trace_id")

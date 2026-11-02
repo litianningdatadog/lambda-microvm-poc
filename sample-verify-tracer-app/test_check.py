@@ -17,6 +17,55 @@ from lifecycle_checks import TELEMETRY_CHECKS
 from lifecycle_checks import required_telemetry_checks
 
 
+class BackendLogEvidenceTest(unittest.TestCase):
+    def test_backend_feature_log_may_omit_empty_errors(self):
+        reference = {"features": {"errors": [], "roots": {"manual": {"span_id": "123"}}}}
+        backend = copy.deepcopy(reference)
+        del backend["features"]["errors"]
+        self.assertTrue(check.log_values_equal(
+            check._restore_backend_empty_errors(backend, reference), reference,
+        ))
+        for invalid in (None, {}, "", ["feature failed"]):
+            with self.subTest(invalid=invalid):
+                backend["features"]["errors"] = invalid
+                self.assertFalse(check.log_values_equal(
+                    check._restore_backend_empty_errors(backend, reference), reference,
+                ))
+
+    def test_backend_termination_log_may_omit_empty_errors(self):
+        from test_delivery_checks import RUNTIME, arm, phase
+
+        reference = phase("termination")
+        backend = copy.deepcopy(reference)
+        del backend["evidence"]["unexpected_errors"]
+        normalized = check._restore_backend_empty_errors(backend, reference)
+        self.assertTrue(all(check.evaluate_termination(arm(), normalized, RUNTIME).values()))
+        self.assertTrue(check.log_values_equal(normalized, reference))
+        for invalid in (None, {}, "", ["upstream failed"]):
+            with self.subTest(invalid=invalid):
+                backend["evidence"]["unexpected_errors"] = invalid
+                normalized = check._restore_backend_empty_errors(backend, reference)
+                self.assertFalse(check.evaluate_termination(
+                    arm(), normalized, RUNTIME,
+                )["delivery_no_unexpected_errors"])
+
+    def test_backend_omissions_cannot_hide_reference_errors_or_other_missing_fields(self):
+        for section, field in (("features", "errors"), ("evidence", "unexpected_errors")):
+            for errors in (None, ["observed failure"]):
+                with self.subTest(section=section, errors=errors):
+                    reference = {section: {field: errors, "other": []}}
+                    backend = {section: {"other": []}}
+                    self.assertFalse(check.log_values_equal(
+                        check._restore_backend_empty_errors(backend, reference), reference,
+                    ))
+            reference = {section: {field: [], "other": []}}
+            for backend in ({}, {section: None}, {section: {}}):
+                with self.subTest(section=section, backend=backend):
+                    self.assertFalse(check.log_values_equal(
+                        check._restore_backend_empty_errors(backend, reference), reference,
+                    ))
+
+
 class EvaluationTest(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -172,16 +221,28 @@ class EvaluationTest(unittest.TestCase):
                 self.assertFalse(result["checks"]["guest_telemetry_scenarios_present"])
                 self.guest["checks"][name] = removed
 
+    def test_historical_schema_does_not_require_new_duplicate_instrumentation_check(self):
+        for schema in (2, 3):
+            self.enable_features()
+            deployment = json.loads((self.results / "deployment.json").read_text())
+            deployment["verification_schema"] = schema
+            self.write("deployment.json", deployment)
+            self.guest["verification_schema"] = schema
+            self.guest["checks"].update({name: True for name in required_telemetry_checks(schema)})
+            self.guest["checks"].pop("feature_http_single_instrumentation")
+            self.save_guest()
+            self.assertEqual(self.evaluate()[0], 0)
+
     def test_schema_three_requires_every_new_telemetry_check(self):
         self.enable_features()
         deployment = json.loads((self.results / "deployment.json").read_text())
-        deployment["verification_schema"] = SCHEMA
+        deployment["verification_schema"] = 3
         self.write("deployment.json", deployment)
-        self.guest["verification_schema"] = SCHEMA
-        self.guest["checks"].update({name: True for name in required_telemetry_checks(SCHEMA)})
+        self.guest["verification_schema"] = 3
+        self.guest["checks"].update({name: True for name in required_telemetry_checks(3)})
         self.save_guest()
         self.assertEqual(self.evaluate()[0], 0)
-        for name in required_telemetry_checks(SCHEMA):
+        for name in required_telemetry_checks(3):
             with self.subTest(name=name):
                 self.guest["checks"].pop(name)
                 self.save_guest()

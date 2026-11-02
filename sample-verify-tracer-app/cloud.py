@@ -95,6 +95,9 @@ def deploy(results):
         )
         for name in (
             "app.py",
+            "intake.py",
+            "delivery.py",
+            "delivery_checks.py",
             "features.py",
             "feature_checks.py",
             "lifecycle_checks.py",
@@ -126,7 +129,11 @@ def deploy(results):
             "run": "ENABLED",
             "runTimeoutInSeconds": 5,
             "terminate": "ENABLED",
-            "terminateTimeoutInSeconds": 5,
+            "terminateTimeoutInSeconds": 30,
+            "suspend": "ENABLED",
+            "suspendTimeoutInSeconds": 30,
+            "resume": "ENABLED",
+            "resumeTimeoutInSeconds": 30,
         },
     }
     environment = {
@@ -143,6 +150,9 @@ def deploy(results):
         "DD_AWS_MICROVM_ENABLE_VALIDATE": "true",
         "DD_AWS_MICROVM_ENABLE_RUN": "true",
         "DD_AWS_MICROVM_ENABLE_TERMINATE": "true",
+        "DD_AWS_MICROVM_ENABLE_SUSPEND": "true",
+        "DD_AWS_MICROVM_ENABLE_RESUME": "true",
+        "DD_AWS_MICROVM_FORWARD_TIMEOUT_MS": "15000",
         "VERIFY_FORWARD_TO_AGENT": "true",
         "VERIFY_RUNTIME_RSS_ALIAS": rss_alias,
         "DD_TRACE_AGENT_URL": "http://127.0.0.1:18126",
@@ -208,9 +218,11 @@ def run(results):
         os.environ.get("EXECUTION_ROLE_ARN", BUILD_ROLE),
         "--maximum-duration-in-seconds",
         "600",
+        "--idle-policy",
+        '{"autoResumeEnabled":false,"maxIdleDurationSeconds":900,"suspendedDurationSeconds":300}',
     )
     # Persist the ID immediately, so the EXIT trap can terminate even if startup fails.
-    vm = {"microvmId": response["microvmId"], "endpoint": response["endpoint"], "start": time.time()}
+    vm = {"microvmId": response["microvmId"], "endpoint": response["endpoint"], "start": time.time(), "cycles": []}
     save(results / "vm.json", vm)
     wait("get-microvm", ["--microvm-identifier", vm["microvmId"]], "RUNNING", 300)
     token = aws(
@@ -228,21 +240,58 @@ def run(results):
         endpoint = "https://" + endpoint
     if urllib.parse.urlparse(endpoint).scheme != "https":
         raise ValueError("MicroVM ingress requires HTTPS")
-    # AWS already called /run. Never prepare or synthesize a second run at runtime.
+
+    def post(route, filename):
+        request = urllib.request.Request(
+            endpoint.rstrip("/") + route,
+            data=b"{}",
+            headers={"Content-Type": "application/json", "X-aws-proxy-auth": token},
+        )
+        with urllib.request.urlopen(request, timeout=90) as reply:  # nosec B310
+            value = json.load(reply)
+        save(results / filename, value)
+        checks = value.get("checks", {})
+        for name, passed in checks.items():
+            print(f"{'PASS' if passed else 'FAIL'} {filename}: {name}")
+        if not checks or not all(passed is True for passed in checks.values()) or value.get("passed") is not True:
+            raise RuntimeError(f"Guest verification failed; see {filename}")
+        return value
+
+    # AWS already called /ready and /run; never synthesize them on a running VM.
+    post("/verify", "verification.json")
+    post("/delivery/automatic", "delivery-automatic.json")
+    post("/delivery/recovery", "delivery-recovery.json")
+    args = ["--microvm-identifier", vm["microvmId"]]
+    for cycle in range(1, 4):
+        transition = {"cycle": cycle}
+        vm["cycles"].append(transition)
+        save(results / "vm.json", vm)
+        for action, wanted, key in (
+            ("suspend-microvm", "SUSPENDED", "suspended"),
+            ("resume-microvm", "RUNNING", "resumed"),
+        ):
+            aws("lambda-microvms", action, *args)
+            observed = wait("get-microvm", args, wanted, 120)
+            transition[key] = {
+                "state": observed["state"],
+                "time": time.time(),
+                "microvmId": vm["microvmId"],
+            }
+            save(results / "vm.json", vm)
+        post("/verify/features", f"verification-resumed-{cycle}.json")
+        post("/delivery/automatic", f"automatic-resumed-{cycle}.json")
     request = urllib.request.Request(
-        endpoint.rstrip("/") + "/verify",
+        endpoint.rstrip("/") + "/delivery/termination",
         data=b"{}",
         headers={"Content-Type": "application/json", "X-aws-proxy-auth": token},
     )
-    with urllib.request.urlopen(request, timeout=30) as reply:  # nosec B310
-        verification = json.load(reply)
-    save(results / "verification.json", verification)
+    with urllib.request.urlopen(request, timeout=15) as reply:  # nosec B310
+        armed = json.load(reply)
+    save(results / "termination-armed.json", armed)
+    if armed.get("armed") is not True:
+        raise RuntimeError("Final termination batch was not armed")
     vm["end"] = time.time()
     save(results / "vm.json", vm)
-    for name, passed in verification["checks"].items():
-        print(f"{'PASS' if passed else 'FAIL'} {name}")
-    if not verification["passed"]:
-        raise RuntimeError("Guest verification failed; see verification.json")
 
 
 def terminate(results):
@@ -255,6 +304,9 @@ def terminate(results):
         except subprocess.CalledProcessError as error:
             if "ResourceNotFoundException" not in (error.stderr or ""):
                 raise
+            vm["end"] = time.time()
+            vm["terminated"] = True
+            save(path, vm)
             return
         deadline = time.monotonic() + 120
         while True:
@@ -266,6 +318,9 @@ def terminate(results):
                 status = "TERMINATED"
             if status == "TERMINATED":
                 print(f"Terminated: {vm['microvmId']}")
+                vm["end"] = time.time()
+                vm["terminated"] = True
+                save(path, vm)
                 return
             if time.monotonic() >= deadline:
                 raise TimeoutError(f"Termination did not finish for {vm['microvmId']}")

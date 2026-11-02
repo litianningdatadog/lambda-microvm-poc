@@ -20,16 +20,17 @@ const defaults = {
   DD_TRACE_STARTUP_LOGS: 'false'
 }
 for (const [key, value] of Object.entries(defaults)) process.env[key] ??= value
-const tracer = require('dd-trace').init({ protocolVersion: '0.4', flushInterval: 3600000 })
+const tracer = require('dd-trace').init({ protocolVersion: '0.4' })
 tracer.use('http', {
-  server: { blocklist: [/^\/health$/, /^\/state$/, /^\/verify$/, /^\/info$/, /^\/v0\.[47]\//, /^\/telemetry\//, /^\/dogstatsd\//] },
-  client: { blocklist: [/^http:\/\/127\.0\.0\.1:(18126|8126)\//] }
+  server: { blocklist: [/^\/health$/, /^\/state$/, /^\/verify$/, /^\/delivery(?:\/|$)/, /^\/info$/, /^\/v0\.[47]\//, /^\/telemetry\//, /^\/dogstatsd\//] },
+  client: { blocklist: [/^http:\/\/127\.0\.0\.1:(18126|8126)\//, /^http:\/\/127\.0\.0\.1:\d+\/(?:health|delivery)(?:[/?]|$)/] }
 })
 const express = require('express')
 const pino = require('pino')
 const { startIntake } = require('./intake')
 const { runFeatures } = require('./features')
 const { evaluateFeatures } = require('./feature-checks')
+const { createDeliveryController } = require('./delivery')
 // Intentional read/flush probes pinned to 6.15.0, not replacements for tracer behavior.
 const getConfig = require('dd-trace/packages/dd-trace/src/config')
 const runtimeMetrics = require('dd-trace/packages/dd-trace/src/runtime_metrics')
@@ -50,10 +51,10 @@ const port = Number(process.env.PORT || 8080)
 const state = {
   prepared: false, runCount: 0, resumeCount: 0, suspendCount: 0, terminateCount: 0,
   bundledOpenSSL: NODE_BUNDLES_OPENSSL, microvm: IS_AWS_LAMBDA_MICROVM, serverless: IS_SERVERLESS,
-  before: null, run: null, runIds: [], verificationCount: 0
+  before: null, run: null, runIds: [], verificationCount: 0, manualFlushCount: 0
 }
 let preparing
-let verifying = false
+let activeWork = null
 
 function identity () {
   const tags = getConfig().tags
@@ -66,6 +67,7 @@ function snapshotState () {
   return { ...state, ...identity(), version }
 }
 async function flush () {
+  state.manualFlushCount++
   await new Promise(resolve => tracer._tracer._exporter.flush(resolve))
   await new Promise(resolve => runtimeMetrics.flush(resolve))
   await new Promise(resolve => tracer.dogstatsd.flush(resolve))
@@ -77,6 +79,34 @@ async function prepare () {
   tracer.dogstatsd.gauge('microvm.js.build_warmup', 1)
   await flush()
   state.prepared = true
+}
+
+const delivery = createDeliveryController({
+  tracer, intake, logger, getConfig, identity, snapshotState, state, baseUrl: `http://127.0.0.1:${port}`
+})
+function workConflict (res) {
+  if (!state.prepared || !state.run) {
+    res.status(409).json({ error: 'Expected platform ready then run hooks' })
+    return true
+  }
+  if (activeWork) {
+    res.status(409).json({ error: `Work already running: ${activeWork}` })
+    return true
+  }
+  return false
+}
+
+for (const scenario of ['automatic', 'recovery', 'termination']) {
+  app.post(`/delivery/${scenario}`, async (req, res, next) => {
+    if (workConflict(res)) return
+    if (delivery.armed && scenario !== 'termination') {
+      return res.status(409).json({ error: 'Final termination batch already armed' })
+    }
+    activeWork = `delivery/${scenario}`
+    try {
+      res.json(scenario === 'termination' ? delivery.armTermination() : await delivery[scenario]())
+    } catch (error) { next(error) } finally { activeWork = null }
+  })
 }
 
 app.get('/health', (req, res) => res.json({ status: 'ready', version, ...identity() }))
@@ -108,11 +138,18 @@ app.post(`${BASE}/run`, (req, res) => {
 })
 for (const hook of ['validate', 'resume', 'suspend', 'terminate']) {
   app.post(`${BASE}/${hook}`, async (req, res, next) => {
+    if (activeWork) return res.status(409).json({ error: `Work already running: ${activeWork}` })
+    activeWork = `hook/${hook}`
     try {
       if (hook !== 'validate') state[`${hook}Count`]++
-      if (hook === 'suspend' || hook === 'terminate') await flush()
+      if (hook === 'suspend') await flush()
+      if (hook === 'terminate' && delivery.armed) {
+        // The forwarded hook must return only after the native tracer timer
+        // reaches the Agent. Native Agent flushing happens after this response.
+        return res.json(await delivery.terminate())
+      }
       res.json({ status: 'ok', ...identity() })
-    } catch (error) { next(error) }
+    } catch (error) { next(error) } finally { activeWork = null }
   })
 }
 // Lookalike routes are used by local negative controls only.
@@ -120,9 +157,9 @@ app.get(`${BASE}/run`, (req, res) => res.json(identity()))
 app.post(`${BASE}/run-extra`, (req, res) => res.json(identity()))
 
 app.post('/verify', async (req, res, next) => {
-  if (verifying) return res.status(409).json({ error: 'Verification already running' })
-  if (!state.prepared || !state.run) return res.status(409).json({ error: 'Expected platform ready then run hooks' })
-  verifying = true
+  if (workConflict(res)) return
+  if (delivery.armed) return res.status(409).json({ error: 'Final termination batch already armed' })
+  activeWork = 'verify'
   try {
     state.verificationCount++
     const offsets = Object.fromEntries(['spans', 'metrics', 'telemetry', 'remoteConfig', 'errors'].map(key => [key, intake.records[key].length]))
@@ -158,7 +195,7 @@ app.post('/verify', async (req, res, next) => {
       ...evaluateFeatures({ features, spans, runtimeId: after.runtimeId, service: getConfig().service })
     }
     const result = {
-      schema: 1, version, passed: Object.values(checks).every(Boolean), checks,
+      schema: 2, version, passed: Object.values(checks).every(Boolean), checks,
       evidence: { before: state.before, run: state.run, after,
         ids: [...(state.verificationCount === 1 ? state.runIds : []), ...features.rootSpans],
         spans, features,
@@ -170,7 +207,7 @@ app.post('/verify', async (req, res, next) => {
       evidence: { before: state.before, run: state.run, after }
     } }, 'microvm_js_verification')
     res.json(result)
-  } catch (error) { next(error) } finally { verifying = false }
+  } catch (error) { next(error) } finally { activeWork = null }
 })
 app.use((error, req, res, next) => {
   logger.error({ err: { message: error.message, stack: error.stack } }, 'verification request error')

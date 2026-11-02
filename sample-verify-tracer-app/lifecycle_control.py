@@ -21,9 +21,9 @@ def run(mode):
     from http.server import ThreadingHTTPServer
     from unittest.mock import Mock
 
-    from app import Intake
-    from app import records
-    from app import records_lock
+    from intake import Intake
+    from intake import records
+    from intake import records_lock
     import msgpack
 
     from ddtrace.internal.runtime import get_runtime_id
@@ -156,7 +156,11 @@ def run(mode):
                 time.sleep(0.05)
             checks["new_worker_exporter_metrics"] = all(value > 0 for value in native_metrics.values())
         checks["intake_succeeded"] = not records["errors"] and not errors
-        return {"mode": mode, "passed": all(checks.values()), "checks": checks, "errors": errors}
+        return {
+            "mode": mode, "passed": all(checks.values()), "checks": checks,
+            "errors": errors + list(records["errors"]),
+            "cancelled_responses": list(records["cancelled_responses"]),
+        }
     finally:
         release.set()
         for thread in threads:

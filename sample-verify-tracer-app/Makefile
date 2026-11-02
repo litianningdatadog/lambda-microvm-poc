@@ -27,10 +27,10 @@ check:
 	python3 verify.py --url "http://localhost:$(PORT)" --output "$(OUTPUT)"
 
 test:
-	python3 -m unittest -v test_check test_feature_checks test_lifecycle_checks
+	python3 -m unittest -v test_check test_feature_checks test_lifecycle_checks test_delivery test_delivery_checks test_cloud
 
 package: prepare
-	zip ../sample-verify-tracer-app.zip Dockerfile app.py features.py feature_checks.py lifecycle_checks.py lifecycle_control.py requirements.txt "$(WHEEL_NAME)" serverless-init-linux-arm64
+	zip ../sample-verify-tracer-app.zip Dockerfile app.py intake.py delivery.py delivery_checks.py features.py feature_checks.py lifecycle_checks.py lifecycle_control.py requirements.txt "$(WHEEL_NAME)" serverless-init-linux-arm64
 
 # Runs separate processes so mode detection happens before ddtrace is imported.
 .PHONY: check-lifecycle

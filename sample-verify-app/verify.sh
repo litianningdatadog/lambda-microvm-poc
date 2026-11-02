@@ -7,12 +7,14 @@
 #   ./verify.sh deploy long         image sample-verify-app-long    (runtime hook timeouts 5s)
 #   ./verify.sh deploy default      image sample-verify-app-default (AWS default 1s timeouts)
 #   ./verify.sh deploy fwd          image sample-verify-app-fwd     (long timeouts, hooks forwarded to app.py)
+#   ./verify.sh deploy delivery     forwarded hooks + controlled Agent backend relays
 #   ./verify.sh run1                long:    suspend → resume → suspend → terminated while SUSPENDED
 #   ./verify.sh run2                long:    terminate while RUNNING
 #   ./verify.sh run3                default: suspend → resume → terminate while RUNNING
 #   ./verify.sh run4                long:    suspend → resume → suspend again within ~3s → terminate while SUSPENDED
 #   ./verify.sh run5                fwd:     suspend → resume → terminate while RUNNING, every hook forwarded
 #   ./verify.sh run6                fwd:     suspend → terminate while SUSPENDED, every hook forwarded
+#   ./verify.sh run7 [--output FILE] automatic delivery, recovery, three cycles, final marker
 #   ./verify.sh logs  <long|default|fwd> [since]   serverless-init lifecycle/flush/send-failure/trace-shutdown/CSA-flush lines, app hook lines
 #   ./verify.sh clock <long|default|fwd> [since]   app clock lines (wall / mono / uptime)
 #   ./verify.sh spans <long|default|fwd> [since]   mvmtest.burst spans created, summed per 10s stats bucket
@@ -52,6 +54,10 @@ note() { print -r -- "$(date -u +%FT%TZ) $*" | tee -a "$EVENTS_LOG"; }
 image_name() { print -r -- "$APP_NAME-$1"; }
 
 hooks_json() {
+  if [[ "$1" == delivery ]]; then
+    hooks_json fwd | jq '.microvmHooks |= with_entries(if .key | endswith("TimeoutInSeconds") then .value = 30 else . end)'
+    return
+  fi
   # fwd: forward (1s) + flush (1.5s) fits the 5s timeouts of the long image.
   if [[ "$1" == long || "$1" == fwd ]]; then
     cat <<'EOF'
@@ -88,13 +94,14 @@ EOF
 # the restore then finds nothing on HOOK_PORT (503, VM terminated). Forwarded,
 # /ready waits until app.py accepts connections.
 env_json() {
-  local spans="${SPANS_PER_SEC:-0}" writer=1 fwd=false
+  local spans="${SPANS_PER_SEC:-0}" writer=1 fwd=false delivery=false
   [[ "$spans" != 0 ]] && writer=0.1
-  [[ "$1" == fwd ]] && fwd=true
+  [[ "$1" == fwd || "$1" == delivery ]] && fwd=true
+  [[ "$1" == delivery ]] && delivery=true
   jq -n --arg key "$DD_API_KEY" --arg site "$DD_SITE" --arg version "$1" \
     --arg spans "$spans" --arg writer "$writer" --arg stats "${STATS_COMPUTATION:-false}" \
     --arg log_payloads "${DD_LOG_PAYLOADS:-false}" \
-    --arg stats_interval "${STATS_INTERVAL:-10}" --argjson fwd "$fwd" '{
+    --arg stats_interval "${STATS_INTERVAL:-10}" --argjson fwd "$fwd" --argjson delivery "$delivery" '{
     DD_API_KEY: $key, DD_SITE: $site, DD_ENV: "devmicrovm", DD_VERSION: $version,
     DD_LOGS_ENABLED: "true", DD_LOG_LEVEL: "debug",
     DD_LOG_PAYLOADS: $log_payloads,
@@ -113,12 +120,18 @@ env_json() {
     DD_AWS_MICROVM_ENABLE_RESUME: "true",
     DD_AWS_MICROVM_ENABLE_SUSPEND: "true",
     DD_AWS_MICROVM_ENABLE_TERMINATE: "true"
+  } else {} end) + (if $delivery then {
+    DELIVERY_ENABLED: "true",
+    DD_DD_URL: "http://127.0.0.1:18127",
+    DD_LOGS_CONFIG_LOGS_DD_URL: "http://127.0.0.1:18128",
+    DD_LOGS_CONFIG_USE_HTTP: "true",
+    DD_LOGS_CONFIG_LOGS_NO_SSL: "true"
   } else {} end)'
 }
 
 cmd_deploy() {
-  local variant="${1:?deploy <long|default|fwd>}"
-  [[ "$variant" == long || "$variant" == default || "$variant" == fwd ]] || { log "ERROR: variant must be long, default or fwd"; exit 1; }
+  local variant="${1:?deploy <long|default|fwd|delivery>}"
+  [[ "$variant" == long || "$variant" == default || "$variant" == fwd || "$variant" == delivery ]] || { log "ERROR: variant must be long, default, fwd or delivery"; exit 1; }
   : "${DD_API_KEY:?DD_API_KEY is required for deploy}"
   [[ -f "$SERVERLESS_INIT_BIN" ]] || { log "ERROR: serverless-init binary not found: $SERVERLESS_INIT_BIN"; exit 1; }
 
@@ -133,7 +146,7 @@ cmd_deploy() {
   log "      serverless-init: $SERVERLESS_INIT_BIN (sha256 $bin_sha)"
 
   log "[1/4] Zipping → $zip"
-  ( cd "$SCRIPT_DIR" && zip -q "$zip" Dockerfile app.py requirements.txt serverless-init-linux-arm64 )
+  ( cd "$SCRIPT_DIR" && zip -q "$zip" Dockerfile app.py delivery.py requirements.txt serverless-init-linux-arm64 )
 
   log "[2/4] Uploading → $s3_uri"
   awsv aws s3api head-bucket --bucket "$S3_BUCKET" "${AWS_ARGS[@]}" 2>/dev/null \
@@ -306,6 +319,16 @@ cmd_run6() {
   log "run6 done: ./verify.sh logs fwd 10m"
 }
 
+# One AWS session also owns the backend polling and incremental JSON evidence.
+cmd_run7() {
+  load_image delivery
+  dd-auth --domain "${DD_AUTH_DOMAIN:-dddev.datadoghq.com}" --force-app-key -- \
+    aws-vault exec sso-serverless-sandbox-account-admin -- \
+    uv run --script "$SCRIPT_DIR/run_delivery.py" \
+    --image "$IMAGE_ARN" --version "$IMAGE_VERSION" --role "$EXECUTION_ROLE_ARN" \
+    --region "$REGION" --events-log "$EVENTS_LOG" "$@"
+}
+
 cmd_logs() {
   awsv aws logs tail "/aws/lambda-microvms/$(image_name "${1:?logs <long|default|fwd> [since]}")" \
     --since "${2:-20m}" --format short "${AWS_ARGS[@]}" \
@@ -346,6 +369,7 @@ case "${1:-}" in
   run4)   cmd_run4 ;;
   run5)   cmd_run5 ;;
   run6)   cmd_run6 ;;
+  run7)   cmd_run7 "${@:2}" ;;
   logs)   cmd_logs "${2:-}" "${3:-}" ;;
   clock)  cmd_clock "${2:-}" "${3:-}" ;;
   spans)  cmd_spans "${2:-}" "${3:-}" ;;

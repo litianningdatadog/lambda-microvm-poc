@@ -73,13 +73,21 @@ function evaluateFeatures({ features, spans, runtimeId, service }) {
 
   function httpEvidence(response, root, expectedStatus) {
     const client = find(response?.client);
-    const server = records.find(span => validIds(response?.client) &&
+    const servers = records.filter(span => validIds(response?.client) &&
       span.trace_id === response.client.traceId && span.parent_id === response.client.spanId &&
       meta(span, 'span.kind') === 'server');
+    const server = servers[0];
+    const clients = records.filter(span => validIds(root) && span.trace_id === root.traceId &&
+      span.parent_id === root.spanId && meta(span, 'span.kind') === 'client' &&
+      meta(span, 'component') === 'http' && meta(span, 'http.url') === meta(client, 'http.url'));
+    // Retransmitting the same IDs is not duplicate instrumentation. Additional
+    // unique client/server spans for one request are, including after resume.
+    const singleRequest = new Set(clients.map(span => span.span_id)).size === 1 &&
+      new Set(servers.map(span => span.span_id)).size === 1;
     return {
       client,
       server,
-      exported: Boolean(client && server) && response?.status === expectedStatus &&
+      exported: Boolean(client && server) && singleRequest && response?.status === expectedStatus &&
         childOf(response?.client, root) && meta(client, 'component') === 'http' &&
         meta(client, 'span.kind') === 'client' && status(client, expectedStatus) &&
         status(server, expectedStatus),

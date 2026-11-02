@@ -11,10 +11,10 @@ its identity. Initializing two ordinary Node processes does not test that bug.
 
 ## Scenarios and required evidence
 
-`POST /verify` returns 30 named boolean assertions plus decoded native trace
-payloads, metric lines, expected span relationships, and lifecycle state. Any
-false assertion makes the result fail. The AWS evaluator also requires the
-complete assertion set; a passing subset is not sufficient.
+`POST /verify` returns 30 named feature assertions plus decoded native trace
+payloads, metric lines, expected span relationships, and lifecycle state. New
+deployments use schema 2: all five feature samples, automatic/recovery evidence,
+and final termination evidence are required. Any false or missing assertion fails.
 
 | Scenario | Assertion / evidence |
 | --- | --- |
@@ -22,7 +22,7 @@ complete assertion set; a passing subset is not sufficient.
 | Snapshot preparation | Forwarded `/ready` warms the ID cache, records the build-time runtime ID, exercises tracing/custom metrics, and flushes before returning. Repeated ready calls are idempotent. |
 | Native `/run` refresh | The real tracer HTTP subscriber refreshes identity before the app's handler executes. The app only reads identity; it never calls refresh/reseed functions or publishes identity channels. |
 | Two clones of one snapshot | Launch up to six candidates of the same image version and select the first pair with the same prepared build-time runtime ID. Require different runtime IDs after run. Compare 128 early application-created trace/span IDs plus eight feature roots per clone. Compare **low 64 trace-ID bits**, not just the timestamp-containing 128-bit ID. Detect duplicates within and across samples. |
-| In-place suspend/resume | AWS suspend/resume APIs and observed `SUSPENDED`/`RUNNING` states; each hook arrives once. Runtime ID stays unchanged, run count stays one, and all tracing features work again with eight newly generated roots. |
+| Repeated in-place suspend/resume | Three real AWS cycles with observed `SUSPENDED`/`RUNNING` states. Runtime ID stays unchanged, run count stays one, counters match each cycle, and all features work again with fresh IDs. Duplicate HTTP instrumentation is rejected; retransmitted identical span IDs are not mistaken for newly created spans. |
 | Manual instrumentation | Independent root, child, and grandchild exported with exact parent IDs, resource names, string tags, and numeric metric `42.5`; active scope restored after nesting. |
 | Rejected async callback | `tracer.trace()` records the expected thrown `Error`, including flag, type, message, and stack, without the app setting error tags. |
 | Automatic HTTP instrumentation | Real `node:http` calls to Express; exported client/server ancestry and status codes. App code does not inject propagation headers. |
@@ -33,7 +33,7 @@ complete assertion set; a passing subset is not sufficient.
 | Pino correlation | Captured, automatically injected JSON trace/span IDs refer to the actual exported manual child; service matches. Handles 128-bit hexadecimal log trace IDs without losing low64 precision. |
 | Runtime/custom metrics | Native RSS and custom `microvm.js.fresh:42` packets use the refreshed runtime ID and service. Real HTTP DogStatsD proxy transport, with UDP fallback capture. |
 | Disabled serverless pipelines | Stock 6.15.0 forces instrumentation telemetry and Remote Config **off** in serverless mode, even if enabling flags are supplied. Require disabled resolved config, no RC client ID, and no outgoing telemetry/RC requests. |
-| Delivery to Datadog | AWS mode forwards original payload bytes/headers to serverless-init and fails on relay errors. Backend evaluation requires APM hit metrics for all eight feature operations, expected-error metrics, and structured verification logs matching each of the three results. CloudWatch must have matching records in the tested VMs' streams. |
+| Delivery to Datadog | AWS mode forwards original payload bytes/headers to serverless-init and fails on unexpected relay errors. Backend evaluation requires at least five hits per feature operation, five expected-error counts, hits for the four delivery operations, all five structured feature results, and the final marker/result logs matching CloudWatch. |
 
 One image version can contain multiple snapshot builds; matching image ARN/version
 alone is not a shared-baseline guarantee. Candidate selection reads `GET /state`
@@ -45,6 +45,11 @@ The Datadog log pipeline may omit null `rcClientId` fields. Log matching tolerat
 only those omissions at the six known identity locations when the required
 disabled-RC assertion matches. Runtime IDs, counters, all assertions, and unrelated
 fields remain strict.
+
+The pipeline may also expand dotted span fields into nested objects. Delivery
+matching accepts both forms of `meta["verify.delivery.marker"]` and
+`metrics["_dd.measured"]`, with unchanged marker and measured-value requirements.
+An explicit dotted key takes precedence; a missing or incorrect value still fails.
 
 Local-only negative controls also exercise `GET /run`, a lookalike `/run-extra`,
 resume before run, a repeated `POST /run`, and an ordinary process without the
@@ -60,6 +65,58 @@ is replaced. It does not force-enable Remote Config or telemetry to exercise
 otherwise-disabled paths. Profiling, crashtracking, OTel exporters, database
 plugins, and worker-thread propagation are not part of this scenario set.
 
+## Delivery scenarios (schema 2)
+
+The tracer uses its **native default 2000ms export interval**. The previous
+one-hour override is removed. Ready, feature verification, and suspend may still
+use the existing explicit flush helper; the new delivery scenarios measure its
+counter before/after and require **no change**. Normal exporter timer activity is
+not counted as a test-triggered flush.
+
+| Endpoint / transition | Required evidence |
+| --- | --- |
+| `POST /delivery/automatic` | Finish a uniquely marked independent trace and observe automatic export within 10 seconds, without an explicit flush. Require exact span/runtime/marker identity and a completed successful intake response. |
+| `POST /delivery/recovery` | Exercise trace-only HTTP 503 and socket-disconnect faults sequentially. Each case offers 24 traces, issues three real loopback health probes during the outage, restores intake in `finally`, and exports a **new** marked trace successfully. No application retry loop is added. |
+| Three AWS suspend/resume cycles | Save each control-plane transition and run all 30 feature assertions after each resume. Compare low64/span IDs across all five samples, preserve runtime identity, and require exact lifecycle counters. |
+| `POST /delivery/termination`, then AWS termination | Arm an idempotent marker, without emitting its trace yet. The forwarded `/terminate` hook finishes that trace and logs inside it, observes normal automatic export, then returns. Require final native-hook evidence and backend arrival after the VM is gone. |
+
+The intake retains every attempt in `traceRequests`, including rejected decoded
+payloads. Only `outcome=accepted` with a completed 2xx response satisfies delivery.
+AWS evaluation additionally requires `forwardToAgent=true` and `forwarded=true`:
+capture-only local success cannot claim an Agent acknowledgement. Fault injection
+affects only `/v0.4/traces`; metrics and application traffic remain available.
+
+Recovery records health timings, encoder trace-count samples, failed attempts,
+restoration time, fresh-span creation, and successful acknowledgements. Health
+requests must finish in under one second; each recovery case has a 20-second
+deadline. The encoder must start/drain at zero and stay within the finite offered
+workload plus the fresh trace. This is an **encoder-queue check**, not a global
+memory-pressure or in-flight-retry stress test. Failed payloads may be dropped or
+retried according to the native SDK; lossless recovery is not asserted. Expected
+tracer error messages during the injected outage are part of the test.
+
+### Termination ordering
+
+MicroVM `/terminate` does **not** guarantee a separate SIGTERM, and JS 6.15.0 does
+not automatically flush the tracer merely because that HTTP hook arrives. The
+app therefore waits for the **normal export timer**, without calling its explicit
+flush helper, until the Agent acknowledges the final span. The local
+serverless-init lifecycle implementation forwards the hook and then sequentially
+flushes its Agent pipelines before responding to AWS. This tests final delivery,
+not an invented tracer shutdown callback.
+
+The image sets `DD_AWS_MICROVM_FORWARD_TIMEOUT_MS=15000`; AWS runtime hooks allow
+30 seconds. Automatic/final-span observation is limited to 10 seconds. Arming is
+performed only after the selected pair's other checks pass. Unselected candidates
+never emit a final marker.
+
+Because the VM is destroyed, final evidence comes from `cloudwatch.json`:
+`microvm_js_termination_log` and `microvm_js_termination_result`. Full evaluation
+also requires matching Datadog records and the termination operation's APM hit.
+Missing final records, changed marker/span IDs, or a failed acknowledgement fail
+the run.
+
+
 ## Local smoke: no credentials
 
 Requires Node.js 22+ and npm:
@@ -71,12 +128,15 @@ npm run smoke
 ```
 
 Runs the actual app/tracer in separate MicroVM-simulation and ordinary-process
-children. Exercises the HTTP surface, decodes actual v0.4 MessagePack payloads,
-checks all guest assertions, repeats features after simulated suspend/resume,
-and stops both children. Logs and JSON evidence are under `results/local-*/`.
+children. Exercises native automatic export, both real intake faults and recovery,
+three synthetic suspend/resume cycles, and the armed final hook, then stops both
+children. Logs and JSON evidence are under `results/local-*/`. The local negative
+control invokes an extra resume before run; cycle assertions compare the proper
+counter deltas rather than pretending those are AWS counters.
 Deployment API/app keys are removed from child environments; intake forwarding
-is disabled. `LOCAL_PORT` overrides the default app port 18080; internal capture
-ports 18126/TCP and 18125/UDP must be free.
+is disabled. `LOCAL_PORT` overrides the default app port 18080; capture ports
+18126/TCP and 18125/UDP must be free. `make test` additionally uses 8126/TCP for
+a controlled upstream; do not run those wire tests alongside a live verifier.
 
 **This is a lifecycle simulation, not snapshot, serverless-init, or Datadog
 backend proof.** Local processes and containers cannot establish clone-safe
@@ -96,6 +156,9 @@ snapshot-safe libcrypto. Do not replace it with an official `node` image with
 bundled OpenSSL. AWS evaluation rejects `bundledOpenSSL=true`, even if local
 checks pass. `make check` calls synthetic ready/run hooks and is intended for a
 fresh local container only.
+This `make check` command runs the 30 feature assertions only. Use `npm run smoke`
+for the local delivery/lifecycle scenarios or `./run-all.sh` for their AWS proof.
+
 
 For an already-running AWS VM whose platform hooks have completed:
 
@@ -128,12 +191,16 @@ The AWS runner:
 3. Launches candidates sequentially, stopping at the first pair sharing a
    prepared build-time runtime ID, with a hard limit of **six VMs**. Only AWS
    invokes ready/run. The runner saves each candidate's state and selection.
-4. Calls `/verify` only on the selected pair, then suspends/resumes the first
-   selected VM and verifies it again. Auto-resume is disabled so the AWS state
-   transition is explicit. Unselected candidates never run the feature scenarios.
-5. Evaluates clone IDs and resume invariants, terminates **all candidates**,
-   captures CloudWatch, waits for ingestion, and evaluates Datadog via `dd-auth`.
-6. Returns nonzero on failed/missing evidence or inconclusive selection. Cleanup
+4. Runs the two initial feature samples plus automatic export and both outage/
+   recovery cases on the first selected VM. Then performs **three** explicit AWS
+   suspend/resume cycles and verifies all features after every resume. Auto-resume
+   is disabled; unselected candidates never run the feature scenarios.
+5. Evaluates pre-termination evidence, arms the final marker on the first selected
+   VM, and terminates **all candidates**. The actual forwarded terminate hook
+   creates the last trace/log; the runner never sends a synthetic AWS hook.
+6. Captures CloudWatch, waits for ingestion, and evaluates Datadog via `dd-auth`,
+   including the final marker and all five feature result logs.
+7. Returns nonzero on failed/missing evidence or inconclusive selection. Cleanup
    runs after failures and interruptions too, including before a pair is selected.
    Each VM has a 600-second maximum lifetime.
 
@@ -170,10 +237,15 @@ at intake, not through a backend RSS query.
 
 Results contain `deployment.json`, `selection.json`, `candidates/vm<N>.json`,
 `candidates/state<N>.json`, and the selected-pair aliases `vm1.json`/`vm2.json`.
-Selected-pair evidence remains `verification-1.json`, `verification-2.json`,
-`verification-resumed.json`, `clone-checks.json`, `cloudwatch.json`,
-`evaluation.json`, numbered step logs, and `summary.txt`. Candidate records and
-selected aliases both record successful termination; cleanup deduplicates VM IDs.
+Schema 2 selected-pair evidence includes `verification-1.json`,
+`verification-2.json`, `verification-resumed-1.json` through
+`verification-resumed-3.json`, `delivery-automatic.json`,
+`delivery-recovery.json`, `termination-armed.json`, `clone-checks.json`,
+`cloudwatch.json`, `evaluation.json`, numbered step logs, and `summary.txt`.
+The final hook result is captured in CloudWatch/Datadog logs, not retrieved from
+the terminated VM. Local simulation additionally saves `termination.json`.
+Candidate records and selected aliases both record successful termination;
+cleanup deduplicates VM IDs.
 
 ```sh
 # Full existing-run evaluation with credentials injected by dd-auth:
@@ -189,7 +261,7 @@ python3 check.py results/<run> \
 python3 check.py results/<run> --guest-only \
   --output results/<run>/offline-evaluation.json
 
-# Credential-free evaluator regression tests:
+# Credential-free Python evaluator/workflow and Node wire-evidence tests:
 make test
 ```
 
@@ -198,6 +270,10 @@ its source or the original `evaluation.json`. It recomputes assertions rather
 than trusting old pass/fail fields and labels the result `aws-and-cached-datadog`.
 Missing cached responses fail without falling back to live API calls.
 
+Preserved schema 1 runs still use their original three samples and can be
+re-evaluated. Their `coverage` explicitly marks the four new scenarios as
+`notCovered`; they cannot establish schema 2 coverage.
+
 Private config/exporter/runtime-metric probes are intentionally tied to 6.15.0.
 Trace assertions use real wire payloads, not monkey-patched exporters. The intake
 binds loopback and uses BigInt-aware MessagePack decoding; converting uint64 IDs
@@ -205,22 +281,21 @@ to JS Number would invalidate collision and parent-link checks.
 
 ## Verification performed
 
-- Initial native and ARM64 AL2023 smoke runs passed all 30 guest assertions.
-- AWS run `results/20261101T214140Z-20701` exercised real suspend/resume,
-  serverless-init forwarding, and Datadog ingestion. All guest assertions and APM
-  metrics passed, but its two VMs inherited different build-time baselines.
-- Re-evaluation with the targeted RC-field fix is saved separately as
-  `evaluation-recheck-rc-null.json`: **164/165 checks pass**, including all three
-  Datadog log matches. The shared-baseline check still fails correctly. Original
-  evidence files are unchanged; this result does not prove same-snapshot reseeding.
-- All **32 evaluator/workflow regression cases passed**, covering pipeline null
-  omission, strict identity/counter checks, cached-output safety, A/B/A selection,
-  exhaustion of six candidates, startup/state/interruption failures, and cleanup
-  retry/idempotence.
-- A credential-free CLI smoke used real loopback HTTPS requests and replayed guest
-  payloads with simulated AWS responses: baselines A/B/A selected candidates 1/3,
-  issued exactly three verification requests to the selected pair, and marked all
-  three candidates terminated with synchronized selected aliases.
-- No new AWS deployment was performed for these fixes. Re-run `./run-all.sh` to
-  verify the corrected candidate-selection workflow against AWS.
+- The earlier AWS run `results/20261102T041423Z-58922` passed **165/165** schema 1
+  checks, including a matched snapshot baseline, real suspend/resume, Agent
+  forwarding, backend feature metrics/logs, and cleanup. It predates these four
+  delivery scenarios.
+- Native and ARM64 AL2023 schema 2 capture-only smoke passed all 30 feature assertions initially
+  and after three synthetic cycles, plus automatic export, both outage/recovery
+  cases, and final-hook assertions. Automatic export completed in about two
+  seconds with manual-flush count unchanged. Both 24-trace recovery workloads
+  peaked at 24 queued traces and drained; final export also used no manual flush.
+- **53 Python regression tests and four Node wire-evidence tests passed.** They
+  cover missing phases/cycles, false acknowledgement from rejected or capture-only
+  payloads, changed counters/identity, final marker mismatch, cached-data safety,
+  and cleanup after partial failures. Wire tests use a real controlled upstream
+  and reject a 200 response whose body has not yet completed.
+- No new AWS deployment was performed for schema 2. Run `./run-all.sh` to verify
+  real repeated suspension, final Agent lifecycle flushing, and new backend
+  evidence. Local capture-only results do not prove those AWS properties.
 

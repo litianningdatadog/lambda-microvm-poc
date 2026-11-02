@@ -32,12 +32,77 @@ The app (`app.py`) emits telemetry continuously, independent of inbound traffic:
 | DogStatsD distribution `mvmtest.distribution` | 1/s | Control for sketch delivery, compared with enhanced lifecycle metrics |
 | JSON log `{"msg":"clock","wall","mono","uptime"}` | every 5s | Q4: guest clocks across suspend |
 | Span `mvmtest.burst` + JSON log `{"msg":"spans","sec","n"}` | `SPANS_PER_SEC` (deploy-time, default 0 = off) | R2: trace stats bucket overwritten |
-| JSON log `{"msg":"apphook","hook"}` + span `mvmtest.hook` + DogStatsD `mvmtest.hook` (tag `hook`) | once per forwarded hook, image `fwd` only | R3: forwarded hooks |
+| JSON log `{"msg":"apphook","hook"}` + span `mvmtest.hook` + DogStatsD `mvmtest.hook` (tag `hook`) | once per forwarded hook, images `fwd` and `delivery` | R3: forwarded hooks |
 
 serverless-init answers all lifecycle hooks itself (`DD_AWS_MICROVM_USER_APP_PORT` is not set),
-except on image `fwd`, where it forwards run/resume/suspend/terminate to `app.py` on port 8081.
+except on images `fwd` and `delivery`, where it forwards run/resume/suspend/terminate to `app.py` on port 8081.
 It writes the app's stdout to both CloudWatch and the Datadog logs pipeline, so
 **CloudWatch = what was printed, Datadog = what arrived.**
+
+## Delivery and repeated-lifecycle suite (run7)
+
+`run7` tests **serverless-init delivery**, not tracer instrumentation. A dedicated
+`delivery` image preserves the existing run1–run6 configurations and their
+`KNOWN`/`WARN` exceptions. It enables forwarded hooks with 30-second AWS timeouts
+and two loopback relays between the Agent and its real Datadog intakes.
+
+| Scenario | Required evidence |
+|---|---|
+| Automatic delivery | Emit one unique `mvmtest_delivery` JSON log and `mvmtest.delivery:42` DogStatsD gauge. Both must be observed in Datadog within 180 seconds, before any suspend or terminate. No explicit flush is triggered by marker emission. |
+| HTTP 503 / disconnect recovery | Fault **Agent → Datadog** logs and metrics POSTs, observe an injected failure in both pipelines, and complete three real app health probes in under one second each while the fault is active. Restore intake in `finally`, emit a fresh marker, and require its log and metric in Datadog within 180 seconds. |
+| Three suspend/resume cycles | Observe AWS `SUSPENDED` then `RUNNING` on the same VM three times. After each resume, require a fast health response and a fresh log/metric pair before the next suspend. Run count stays one; suspend/resume counts advance exactly; the app's run ID stays stable. |
+| Final termination marker | Arm a unique marker without emitting it. The forwarded terminate hook emits it once with counters `run=1`, `suspend=3`, `resume=3`, `terminate=1`. After AWS reports the VM gone, require the matching CloudWatch and Datadog log records within 180 seconds of emission. |
+
+Marker gauges carry explicit `service`, `marker`, `scenario`, and `run_id` tags;
+the DogStatsD client does not inherit `DD_SERVICE` automatically. Marker IDs and
+the app run ID are created after launch, never during snapshot preparation.
+The final gauge is emitted but **not required**: last-moment UDP parsing retains
+the existing hook-metric caveat. This suite does not claim lossless replay of
+failed payloads, bounded global Agent memory, or tracer feature correctness.
+
+Run with the same sandbox account and Datadog org used by the existing suite:
+
+```sh
+cd sample-verify-app
+# Uses the local serverless-init binary; the API key is stored in the image env.
+dd-auth --domain dddev.datadoghq.com --force-app-key -- ./verify.sh deploy delivery
+./verify.sh run7 --output results/my-delivery-run/delivery-run.json
+```
+
+The runner uses one AWS session, queries Datadog with application-key auth, and
+terminates its VM on success or failure. It saves partial evidence incrementally,
+including backend responses, health timings, injected-failure metadata, control-plane
+transitions, and final CloudWatch records. The verdict is saved alongside it as
+`delivery-run-evaluation.json`; existing output paths are rejected. VM tokens and
+relay request credentials/payloads are not written to these artifacts.
+
+Re-evaluate saved evidence without credentials or network access:
+
+```sh
+python3 check_delivery.py results/my-delivery-run/delivery-run.json \
+  --output results/my-delivery-run/reevaluation.json
+```
+
+`./run-all.sh` includes deployment and execution at steps 47 and 48. Unlike
+run1–run6, run7 evaluates during execution; do not use `verify.sh check run7`.
+The relays bind only to `127.0.0.1:18127` (metrics) and `:18128` (logs), forward
+to fixed HTTPS Datadog hosts, and retain bounded metadata rather than payloads.
+API-key validation GETs pass through normally; only telemetry POSTs are faulted.
+
+Offline regressions, including real loopback HTTP fault/recovery tests:
+
+```sh
+uv run --python 3.12 --with datadog --with ddtrace -- \
+  python3 -m unittest -b -v test_runner test_delivery test_check_delivery test_run_delivery
+```
+
+Live validation on 2026-11-02 used `sample-verify-app-delivery` image **2.0**
+and serverless-init SHA prefix `459e0c16ba1b`. All **40 checks passed**, including
+offline replay, in `results/delivery-live-20261102T053000Z/`. Initial automatic
+delivery was observed after 16.5 seconds; fresh delivery after HTTP 503 and
+disconnect recovery took 16.6 and 27.0 seconds. The three resumed samples took
+16.2–18.9 seconds, and the final log was observed after 22.6 seconds. All health
+probes completed in 110–182 ms. The VM was terminated.
 
 ## Questions
 

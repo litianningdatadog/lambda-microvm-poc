@@ -7,7 +7,7 @@ RUN dnf install -y python3.12 python3.12-pip && dnf clean all
 COPY requirements.txt .
 RUN python3.12 -m pip install --no-cache-dir -r requirements.txt
 
-COPY app.py .
+COPY app.py delivery.py .
 
 # Local serverless-init build (copied in by `./verify.sh deploy` from $SERVERLESS_INIT_BIN).
 COPY serverless-init-linux-arm64 /serverless-init

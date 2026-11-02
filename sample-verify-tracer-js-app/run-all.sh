@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Real AWS snapshot clones -> real suspend/resume -> cleanup -> required backend checks.
+# Real AWS clones -> native delivery/recovery -> three suspend/resumes -> final batch/backend checks.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,10 +10,13 @@ if (( $# )); then
 Usage: ./run-all.sh
 Deploys a pinned dd-trace 6.15.0 image and launches up to 6 bounded candidates,
 selecting the first pair with the SAME prepared before.runtimeId (selection.json).
-Verifies only that pair, suspends/resumes the first selected clone through AWS,
-terminates every candidate, captures CloudWatch, and requires Datadog feature APM
-hits/errors and matching structured result logs. No match is inconclusive/failure.
-No local hook simulation runs. Missing evidence and shared-baseline checks fail.
+Verifies both selected clones, checks native automatic export and intake recovery,
+then performs THREE real AWS suspend/resume cycles with feature verification each
+time (five feature samples total). Arms the first clone's final termination batch
+only after those checks, terminates every candidate, and captures CloudWatch.
+Requires all feature/delivery evidence, five backend feature hits/errors, delivery
+APM, and matching feature/final-termination logs. No match is inconclusive/failure.
+No local hook simulation runs; missing new-scenario evidence always fails.
 
 Required: DD_API_KEY (the same Datadog org queried by dd-auth).
 Tools: aws, aws-vault, dd-auth, make, python3, npm, tee.

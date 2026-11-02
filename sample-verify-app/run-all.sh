@@ -107,6 +107,11 @@ done
 step 44-deploy-fwd     ./verify.sh deploy fwd
 run_and_check 45 run5 fwd     10m    # every hook forwarded to app.py (R3)
 run_and_check 46 run6 fwd     10m    # forwarded /suspend as the last hook (R3, #58960)
+if step 47-deploy-delivery ./verify.sh deploy delivery; then
+  step 48-run7-check ./verify.sh run7 --output "$R/delivery-run.json"
+else
+  print "run7: FAIL (delivery image deployment failed)" | tee "$R/48-run7-check.txt"
+fi
 
 # R2: 200 spans/s, trace stats bucket overwrite check on both paths
 SPANS_PER_SEC=200 step 50-deploy-long-burst ./verify.sh deploy long

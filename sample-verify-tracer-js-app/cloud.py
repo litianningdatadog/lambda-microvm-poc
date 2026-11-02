@@ -19,7 +19,7 @@ PROFILE = os.environ.get("AWS_VAULT_PROFILE", "sso-serverless-sandbox-account-ad
 BUILD_ROLE = os.environ.get("BUILD_ROLE_ARN", "arn:aws:iam::425362996713:role/microvm-build-role")
 CANDIDATE_LIMIT = 6
 FILES = (
-    "Dockerfile", "app.js", "intake.js", "features.js", "feature-checks.js",
+    "Dockerfile", "app.js", "intake.js", "delivery.js", "features.js", "feature-checks.js",
     "package.json", "package-lock.json", "serverless-init-linux-arm64",
 )
 
@@ -99,6 +99,7 @@ def deploy(results):
         "DD_TRACE_ENABLED": "true", "DD_TRACE_SAMPLE_RATE": "1", "DD_TRACE_STARTUP_LOGS": "true",
         "DD_RUNTIME_METRICS_ENABLED": "true", "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED": "true",
         "DD_AWS_MICROVM_USER_APP_PORT": "8080", "VERIFY_FORWARD_TO_AGENT": "true",
+        "DD_AWS_MICROVM_FORWARD_TIMEOUT_MS": "15000",
         "DD_TRACE_AGENT_URL": "http://127.0.0.1:18126", "DD_DOGSTATSD_URL": "udp://127.0.0.1:18125",
         **{"DD_AWS_MICROVM_ENABLE_" + hook.upper(): "true"
            for hook in ("ready", "validate", "run", "suspend", "resume", "terminate")},
@@ -122,7 +123,7 @@ def deploy(results):
             response = aws("lambda-microvms", "create-microvm-image", "--name", NAME, *args)
     deployment = {
         "imageArn": response["imageArn"], "imageVersion": str(response["imageVersion"]),
-        "imageName": NAME, "region": REGION, "version": results.name, "schema": 1,
+        "imageName": NAME, "region": REGION, "version": results.name, "schema": 2,
         "start": time.time(), "logGroup": f"/aws/lambda-microvms/{NAME}",
         "sha256": {name: hashlib.sha256((APP / name).read_bytes()).hexdigest() for name in FILES},
     }
@@ -186,19 +187,22 @@ def prepared_runtime_id(state):
     return before_id
 
 
-def verify(results, vm, filename):
-    # Only selected candidates reach this repeatable endpoint; AWS alone calls ready/run.
-    result = guest_request(vm, "/verify", b"{}")
+def verify(results, vm, filename, path="/verify"):
+    # Only selected candidates reach these endpoints; AWS alone calls lifecycle hooks.
+    result = guest_request(vm, path, b"{}")
     save(results / filename, result)
     vm["end"] = time.time()
     for name, passed in result.get("checks", {}).items():
         print(f"{'PASS' if passed is True else 'FAIL'} {filename}: {name}")
-    if not result.get("checks") or result.get("passed") is not True:
+    if (result.get("schema") != 2 or result.get("passed") is not True
+            or not result.get("checks") or not all(value is True for value in result["checks"].values())):
         raise RuntimeError(f"Guest verification failed; see {filename}")
 
 
 def run(results):
     deployment = json.loads((results / "deployment.json").read_text())
+    if deployment.get("schema") != 2:
+        raise ValueError("Cloud runs require a schema 2 deployment")
     (results / "candidates").mkdir(exist_ok=True)
     selection = {"status": "inconclusive", "limit": CANDIDATE_LIMIT, "candidates": []}
     save(results / "selection.json", selection)
@@ -239,17 +243,26 @@ def run(results):
         save_selected(1)
         verify(results, second, "verification-2.json")
         save_selected(2)
+        verify(results, first, "delivery-automatic.json", "/delivery/automatic")
+        save_selected(1)
+        verify(results, first, "delivery-recovery.json", "/delivery/recovery")
+        save_selected(1)
         args = ["--microvm-identifier", first["microvmId"]]
-        aws("lambda-microvms", "suspend-microvm", *args)
-        suspended = wait("get-microvm", args, "SUSPENDED", 90)
-        first["suspended"] = {"state": suspended["state"], "time": time.time()}
-        save_selected(1)
-        aws("lambda-microvms", "resume-microvm", *args)
-        resumed = wait("get-microvm", args, "RUNNING", 90)
-        first["resumed"] = {"state": resumed["state"], "time": time.time()}
-        save_selected(1)
-        verify(results, first, "verification-resumed.json")
-        save_selected(1)
+        first["cycles"] = []
+        for number in range(1, 4):
+            cycle = {"cycle": number}
+            first["cycles"].append(cycle)
+            save_selected(1)
+            aws("lambda-microvms", "suspend-microvm", *args)
+            suspended = wait("get-microvm", args, "SUSPENDED", 90)
+            cycle["suspended"] = {"state": suspended["state"], "time": time.time()}
+            save_selected(1)
+            aws("lambda-microvms", "resume-microvm", *args)
+            resumed = wait("get-microvm", args, "RUNNING", 90)
+            cycle["resumed"] = {"state": resumed["state"], "time": time.time()}
+            save_selected(1)
+            verify(results, first, f"verification-resumed-{number}.json")
+            save_selected(1)
         from check import evaluate_guest
         checks = evaluate_guest(results)
         save(results / "clone-checks.json", {"passed": all(checks.values()), "checks": checks})
@@ -257,6 +270,11 @@ def run(results):
             print(f"{'PASS' if passed else 'FAIL'} {name}")
         if not all(checks.values()):
             raise RuntimeError("Snapshot clone/resume assertions failed; see clone-checks.json")
+        arm = guest_request(first, "/delivery/termination", b"{}")
+        save(results / "termination-armed.json", arm)
+        if (arm.get("schema") != 2 or arm.get("scenario") != "termination-armed"
+                or arm.get("armed") is not True):
+            raise RuntimeError("Termination was not armed; see termination-armed.json")
     finally:
         terminate(results)
 

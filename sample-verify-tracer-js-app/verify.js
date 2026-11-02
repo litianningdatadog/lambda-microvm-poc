@@ -11,7 +11,7 @@ async function request (url, route, method = 'GET') {
     headers['X-aws-proxy-port'] = '8080'
   }
   const response = await fetch(new URL(route, url), {
-    method, headers, ...(method === 'POST' ? { body: '{}' } : {}), signal: AbortSignal.timeout(30000)
+    method, headers, ...(method === 'POST' ? { body: '{}' } : {}), signal: AbortSignal.timeout(90000)
   })
   const value = await response.json()
   if (!response.ok) throw new Error(`${method} ${route}: HTTP ${response.status}: ${JSON.stringify(value)}`)

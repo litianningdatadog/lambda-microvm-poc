@@ -1,6 +1,7 @@
 """Negative cases ensure exported-span checks detect common tracing regressions."""
 
 import unittest
+import copy
 
 from feature_checks import EXPECTED_ERROR
 from feature_checks import FEATURE_OPERATIONS
@@ -118,6 +119,17 @@ class FeatureCheckTest(unittest.TestCase):
     def test_log_without_correlation_fails(self):
         self.evidence["manual"]["log"]["dd.trace_id"] = "0"
         self.assertFalse(self.checks()["feature_log_correlation"])
+
+    def test_retransmitted_span_ids_do_not_look_like_reinstrumentation(self):
+        self.spans.extend(copy.deepcopy(self.spans))
+        self.assertTrue(all(self.checks().values()))
+
+    def test_additional_unique_client_or_server_span_is_duplicate_instrumentation(self):
+        for component, parent in (("requests", None), ("flask", 2200)):
+            with self.subTest(component=component):
+                self.add_span("http", 9900, parent, meta={"component": component, "http.status_code": "200"})
+                self.assertFalse(self.checks()["feature_http_single_instrumentation"])
+                self.spans.pop()
 
     def test_w3c_parent_mismatch_fails(self):
         self.evidence["http"]["w3c_parent_id"] = "unrelated"

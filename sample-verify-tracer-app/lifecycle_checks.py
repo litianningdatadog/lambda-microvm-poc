@@ -1,6 +1,6 @@
 """Pure checks shared by the guest, evaluator, and local lifecycle controls."""
 
-SCHEMA = 3
+SCHEMA = 4
 TELEMETRY_CHECKS = frozenset(
     {
         "20956_worker_replaced",
@@ -22,7 +22,7 @@ SUBSCRIPTION_CHECKS = frozenset(
 
 
 def required_telemetry_checks(schema):
-    return TELEMETRY_CHECKS | SUBSCRIPTION_CHECKS if schema >= SCHEMA else TELEMETRY_CHECKS
+    return TELEMETRY_CHECKS | SUBSCRIPTION_CHECKS if schema >= 3 else TELEMETRY_CHECKS
 
 
 def subscriber_count(telemetry_writer, writer):

@@ -15,6 +15,15 @@ const port = Number(process.env.LOCAL_PORT || 18080)
 const url = `http://127.0.0.1:${port}`
 const results = path.resolve('results', `local-${new Date().toISOString().replaceAll(/[:.]/g, '-')}`)
 
+async function saveResult (name, value) {
+  value.execution = 'local-lifecycle-simulation-capture-only-not-agent-or-backend-proof'
+  await writeFile(path.join(results, `${name}.json`), JSON.stringify(value, null, 2) + '\n')
+  for (const [check, passed] of Object.entries(value.checks || {})) {
+    console.log(`${passed ? 'PASS' : 'FAIL'} ${name}: ${check}`)
+  }
+  assert.equal(value.passed, true, `see ${name}.json`)
+}
+
 async function run (microvm) {
   const env = { ...process.env, PORT: String(port), VERIFY_FORWARD_TO_AGENT: 'false',
     DD_TRACE_AGENT_URL: 'http://127.0.0.1:18126', DD_DOGSTATSD_PORT: '18125', DD_VERSION: 'local-smoke' }
@@ -49,21 +58,45 @@ async function run (microvm) {
       assert.equal(after.rcClientId, null, 'Remote Config stays disabled in MicroVM mode')
       assert.notEqual(after.runtimeId, before.runtimeId)
       const verification = await request(url, '/verify', 'POST')
-      verification.execution = 'local-lifecycle-simulation-not-a-snapshot'
-      await writeFile(path.join(results, 'verification.json'), JSON.stringify(verification, null, 2) + '\n')
-      for (const [name, passed] of Object.entries(verification.checks)) console.log(`${passed ? 'PASS' : 'FAIL'} ${name}`)
-      assert.equal(verification.passed, true, 'see verification.json')
-      await request(url, `${BASE}/suspend`, 'POST')
-      await request(url, `${BASE}/resume`, 'POST')
-      const resumed = await request(url, '/verify', 'POST')
-      resumed.execution = 'local-lifecycle-simulation-not-a-snapshot'
-      await writeFile(path.join(results, 'verification-resumed.json'), JSON.stringify(resumed, null, 2) + '\n')
-      assert.equal(resumed.passed, true)
-      assert.equal(resumed.state.runtimeId, after.runtimeId)
-      assert.equal(resumed.state.rcClientId, after.rcClientId)
-      assert.equal(resumed.state.runCount, 1)
-      assert.equal(resumed.state.suspendCount, 1)
-      assert.equal(resumed.state.resumeCount, 2)
+      await saveResult('verification-1', verification)
+      for (const scenario of ['automatic', 'recovery']) {
+        const delivery = await request(url, `/delivery/${scenario}`, 'POST')
+        await saveResult(`delivery-${scenario}`, delivery)
+        assert.equal(delivery.evidence.forwardToAgent, false, 'local capture is not Agent delivery')
+        assert.equal(delivery.evidence.manualFlushCountBefore, delivery.evidence.manualFlushCountAfter)
+        if (scenario === 'recovery') {
+          assert.deepEqual(delivery.evidence.cases.map(value => value.mode), ['http503', 'disconnect'])
+          for (const value of delivery.evidence.cases) {
+            assert.ok(value.failureAttempts.length > 0)
+            assert.ok(value.failureAttempts.every(attempt => attempt.outcome === `injected-${value.mode}`))
+            assert.ok(value.freshAcknowledgements.every(attempt => attempt.outcome === 'accepted'))
+            assert.ok(value.probes.length >= 3)
+          }
+        }
+      }
+      for (let cycle = 1; cycle <= 3; cycle++) {
+        await request(url, `${BASE}/suspend`, 'POST')
+        await request(url, `${BASE}/resume`, 'POST')
+        const resumed = await request(url, '/verify', 'POST')
+        await saveResult(`verification-resumed-${cycle}`, resumed)
+        assert.equal(resumed.state.runtimeId, after.runtimeId)
+        assert.equal(resumed.state.rcClientId, after.rcClientId)
+        assert.equal(resumed.state.runCount, 1)
+        assert.equal(resumed.state.suspendCount, cycle)
+        assert.equal(resumed.state.resumeCount, negative.resumeCount + cycle)
+        assert.equal(resumed.state.verificationCount, cycle + 1)
+      }
+      const armed = await request(url, '/delivery/termination', 'POST')
+      const armedAgain = await request(url, '/delivery/termination', 'POST')
+      assert.equal(armed.armed, true)
+      assert.equal(armed.marker, armedAgain.marker, 'arming must be idempotent')
+      await writeFile(path.join(results, 'termination-armed.json'), JSON.stringify(armed, null, 2) + '\n')
+      const terminated = await request(url, `${BASE}/terminate`, 'POST')
+      await saveResult('termination', terminated)
+      assert.equal(terminated.marker, armed.marker)
+      assert.equal(terminated.evidence.runtimeId, after.runtimeId)
+      assert.equal(terminated.evidence.manualFlushCountBefore, terminated.evidence.manualFlushCountAfter)
+      assert.equal(terminated.state.terminateCount, 1)
     } else {
       assert.equal(after.runtimeId, before.runtimeId, 'ordinary Node process must not refresh on a run-like route')
       assert.equal(after.rcClientId, before.rcClientId)

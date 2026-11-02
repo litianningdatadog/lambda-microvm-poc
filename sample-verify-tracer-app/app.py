@@ -1,4 +1,4 @@
-"""One-shot MicroVM tracer identity-refresh verification guest.
+"""MicroVM tracer identity, feature, and native-delivery verification guest.
 
 Private tracer fields are intentional probes tied to the wheel under test.
 The intake records native exporter payloads and forwards them to the local Agent
@@ -6,9 +6,6 @@ when VERIFY_FORWARD_TO_AGENT is enabled for the AWS workflow.
 """
 
 import gc
-import gzip
-from http.client import HTTPConnection
-from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 import json
 import os
@@ -17,16 +14,20 @@ import socket
 import threading
 import time
 
+from delivery import Delivery
 from feature_checks import evaluate_features
 from features import run_features
 from features import span_identity
+from intake import FORWARD
+from intake import Intake
+from intake import records
+from intake import records_lock
 from flask import Flask
 from flask import jsonify
 from flask import request
 from lifecycle_checks import SCHEMA
 from lifecycle_checks import exporter_metrics
 from lifecycle_checks import subscriber_count
-import msgpack
 
 from ddtrace import __version__
 from ddtrace import tracer
@@ -40,81 +41,20 @@ from ddtrace.propagation.http import HTTPPropagator
 
 app = Flask(__name__)
 state = {}
-records = {"traces": [], "telemetry": [], "dogstatsd": [], "dogstatsd_alias": [], "errors": []}
-records_lock = threading.Lock()
 scenario_lock = threading.Lock()
-FORWARD = os.environ.get("VERIFY_FORWARD_TO_AGENT") == "true"
 RSS_METRIC = "runtime.python.mem.rss"
 RSS_ALIAS = os.environ.get("VERIFY_RUNTIME_RSS_ALIAS", "")
 HOOK_BASE = "/aws/lambda-microvms/runtime/v1"
+delivery = Delivery(state)
 
 
-class Intake(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if FORWARD:
-            self.forward(b"")
-            return
-        self.respond({"endpoints": ["v0.4/traces", "telemetry/proxy/api/v2/apmtelemetry"]})
+def lifecycle_state():
+    return dict(state["lifecycle"])
 
-    def do_POST(self):
-        self.do_PUT()
 
-    def do_PUT(self):
-        raw_body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
-        body = raw_body
-        try:
-            if self.headers.get("Content-Encoding") == "gzip":
-                body = gzip.decompress(body)
-            with records_lock:
-                if self.path.endswith("/traces"):
-                    if not self.path.startswith("/v0.4/"):
-                        raise ValueError(f"Expected v0.4 traces, got {self.path}")
-                    records["traces"].extend(msgpack.unpackb(body, raw=False, strict_map_key=False))
-                elif "telemetry" in self.path:
-                    records["telemetry"].append(json.loads(body))
-        except Exception as error:
-            with records_lock:
-                records["errors"].append(str(error))
-            self.respond({}, 400)
-            return
-        if FORWARD:
-            self.forward(raw_body)
-        else:
-            self.respond({"rate_by_service": {}})
-
-    def forward(self, body):
-        connection = HTTPConnection("127.0.0.1", 8126, timeout=5)
-        try:
-            headers = {
-                k: v
-                for k, v in self.headers.items()
-                if k.lower() not in {"host", "connection", "content-length", "transfer-encoding"}
-            }
-            connection.request(self.command, self.path, body=body, headers=headers)
-            response = connection.getresponse()
-            payload = response.read()
-            self.send_response(response.status)
-            self.send_header("Content-Type", response.getheader("Content-Type", "application/json"))
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            self.wfile.write(payload)
-        except OSError as error:
-            with records_lock:
-                records["errors"].append(f"Agent forwarding failed: {error}")
-            self.respond({}, 502)
-        finally:
-            connection.close()
-
-    def respond(self, value, status=200):
-        body = json.dumps(value).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, *args):
-        pass
+def flush_tracer():
+    state["manual_flush_count"] += 1
+    tracer.flush()
 
 
 def receive_metrics(sock):
@@ -193,9 +133,44 @@ def ready():
 
 
 @app.post(HOOK_BASE + "/validate")
-@app.post(HOOK_BASE + "/terminate")
 def acknowledge_hook():
     return jsonify(status="ok")
+
+
+@app.post(HOOK_BASE + "/suspend")
+def suspend_hook():
+    state["lifecycle"]["suspend"] += 1
+    return jsonify(lifecycle=lifecycle_state(), runtime_id=get_runtime_id())
+
+
+@app.post(HOOK_BASE + "/resume")
+def resume_hook():
+    # Resume preserves the identity assigned by the initial native /run listener.
+    state["lifecycle"]["resume"] += 1
+    return jsonify(lifecycle=lifecycle_state(), runtime_id=get_runtime_id())
+
+
+@app.post(HOOK_BASE + "/terminate")
+def terminate_hook():
+    if not state:
+        return jsonify(status="ok")
+    state["lifecycle"]["terminate"] += 1
+    return jsonify(delivery.terminate())
+
+
+@app.post("/delivery/automatic")
+def automatic_delivery():
+    return jsonify(delivery.automatic())
+
+
+@app.post("/delivery/recovery")
+def recover_delivery():
+    return jsonify(delivery.recovery())
+
+
+@app.post("/delivery/termination")
+def arm_termination():
+    return jsonify(delivery.arm())
 
 
 @app.post("/prepare")
@@ -208,7 +183,15 @@ def prepare():
     runtime._worker.stop()
     runtime.join(2)
     old = tracer._span_aggregator.writer
+    # Keep the seeded trace buffered without changing the replacement writer's
+    # native one-second timer. A normal stop would flush and retire the exporter.
+    if old._worker is None:
+        old.start()
+    old._worker._before_fork()
+    old._worker.join(2)
     state.update(
+        manual_flush_count=0,
+        lifecycle={"run": 0, "suspend": 0, "resume": 0, "terminate": 0},
         old_id=get_runtime_id(),
         old_writer=old,
         old_worker=telemetry_writer._worker,
@@ -258,6 +241,7 @@ def prepare():
 @app.post(MICROVM_RUN_HOOK_PATH)
 def run_hook():
     # The Flask request-start listener must refresh identity before this handler.
+    state["lifecycle"]["run"] += 1
     return jsonify(runtime_id=get_runtime_id())
 
 
@@ -324,7 +308,7 @@ def verify():
     with tracer.start_span("verify.fresh", child_of=None) as fresh:
         state["fresh_trace_id"] = fresh.trace_id & ((1 << 64) - 1)
     feature_evidence = run_features()
-    tracer.flush()
+    flush_tracer()
     RuntimeWorker._instance.flush()
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "verify.after_refresh", 1)
     telemetry_writer.periodic(force_flush=True)
@@ -390,6 +374,8 @@ def verify():
         runtime_rss_packets=rss_packets_for_runtime(metrics, new_id),
         runtime_rss_alias=RSS_ALIAS or None,
         features=feature_evidence,
+        lifecycle=lifecycle_state(),
+        manual_flush_count=state["manual_flush_count"],
         feature_spans=[
             span
             for span in spans
@@ -398,6 +384,58 @@ def verify():
     )
     state["result"] = result
     print(json.dumps({"msg": "tracer_verification", **result}), flush=True)
+    return jsonify(result)
+
+
+@app.post("/verify/features")
+def verify_resumed_features():
+    if "result" not in state:
+        return jsonify(error="Complete initial /verify first"), 409
+    if not delivery.lock.acquire(blocking=False):
+        return jsonify(error="A delivery scenario is already running"), 409
+    try:
+        return resumed_feature_result()
+    finally:
+        delivery.lock.release()
+
+
+def resumed_feature_result():
+    runtime_id = get_runtime_id()
+    features = run_features()
+    flush_tracer()
+    with records_lock:
+        trace_ids = {root["trace_id"] for root in features["roots"].values()}
+        spans = [
+            span
+            for trace in records["traces"]
+            for span in trace
+            if str(span["trace_id"]) in trace_ids
+        ]
+    checks = evaluate_features(spans, features, runtime_id)
+    lifecycle = lifecycle_state()
+    checks.update(
+        runtime_identity_stable=runtime_id == state["result"]["runtime_id"],
+        lifecycle_counters=(
+            lifecycle["run"] == 1
+            and lifecycle["suspend"] == lifecycle["resume"]
+            and 1 <= lifecycle["resume"] <= 3
+            and lifecycle["terminate"] == 0
+        ),
+    )
+    result = dict(
+        verification_schema=SCHEMA,
+        scenario="resumed-features",
+        cycle=lifecycle["resume"],
+        runtime_id=runtime_id,
+        verification_id=os.environ.get("DD_VERSION", "local"),
+        passed=all(checks.values()),
+        checks=checks,
+        features=features,
+        feature_spans=spans,
+        lifecycle=lifecycle,
+        manual_flush_count=state["manual_flush_count"],
+    )
+    print(json.dumps({"msg": "tracer_resumed_features", **result}), flush=True)
     return jsonify(result)
 
 

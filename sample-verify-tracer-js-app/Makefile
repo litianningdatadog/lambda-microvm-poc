@@ -12,7 +12,7 @@ build: prepare
 	docker build --platform linux/arm64 -t "$(IMAGE)" .
 
 package: prepare
-	zip ../sample-verify-tracer-js-app.zip Dockerfile app.js intake.js features.js feature-checks.js package.json package-lock.json serverless-init-linux-arm64
+	zip ../sample-verify-tracer-js-app.zip Dockerfile app.js intake.js features.js feature-checks.js delivery.js package.json package-lock.json serverless-init-linux-arm64
 
 # Capture-only mode; intentionally bypass the Linux serverless-init binary.
 start:
@@ -33,3 +33,4 @@ smoke:
 
 test:
 	python3 -m unittest -v test_check test_cloud
+	node --test test-delivery.js

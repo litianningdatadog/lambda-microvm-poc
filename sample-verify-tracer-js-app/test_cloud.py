@@ -19,14 +19,18 @@ import cloud
 class FakeCloud:
     """Model platform hooks, read-only state, and verification at external boundaries."""
 
-    def __init__(self, baselines, startup_failure=None, state_failure=None, state_change=None):
+    def __init__(self, baselines, startup_failure=None, state_failure=None, state_change=None,
+                 delivery_failure=None, cycle_failure=None):
         self.baselines = baselines
         self.startup_failure = startup_failure
         self.state_failure = state_failure
         self.state_change = state_change or {}
+        self.delivery_failure = delivery_failure
+        self.cycle_failure = cycle_failure
         self.vms = {}
         self.calls = []
         self.requests = []
+        self.events = []
         self.termination_attempts = []
         self.termination_failures = set()
 
@@ -34,6 +38,7 @@ class FakeCloud:
         if service != "lambda-microvms":
             raise AssertionError(f"Unexpected service: {service}")
         self.calls.append((operation, args))
+        self.events.append((operation, args))
         if operation == "run-microvm":
             number = len(self.vms) + 1
             microvm_id = f"microvm-{number}"
@@ -72,6 +77,8 @@ class FakeCloud:
             vm["state"]["suspendCount"] += 1
             return {}
         if operation == "resume-microvm":
+            if vm["state"]["suspendCount"] == self.cycle_failure:
+                raise RuntimeError(f"resume cycle {self.cycle_failure} failed")
             vm["status"] = "RUNNING"
             vm["state"]["resumeCount"] += 1
             return {}
@@ -85,6 +92,7 @@ class FakeCloud:
                 or request.get_header("X-aws-proxy-port") != "8080"):
             raise AssertionError("Guest requests must use HTTPS and in-memory scoped tokens")
         self.requests.append((microvm_id, request.get_method(), url.path))
+        self.events.append((request.get_method() + " " + url.path, microvm_id))
         vm = self.vms[microvm_id]
         if vm["status"] != "RUNNING":
             raise AssertionError("Guest must be running")
@@ -95,8 +103,12 @@ class FakeCloud:
         elif url.path == "/verify" and request.get_method() == "POST" and request.data == b"{}":
             vm["state"]["verificationCount"] += 1
             result = self.verification(microvm_id)
+        elif url.path in ("/delivery/automatic", "/delivery/recovery", "/delivery/termination"):
+            if request.get_method() != "POST" or request.data != b"{}":
+                raise AssertionError("Delivery scenarios require POST with JSON")
+            result = self.delivery(microvm_id, url.path.rsplit("/", 1)[1])
         else:
-            raise AssertionError("Only GET /state and selected POST /verify are permitted")
+            raise AssertionError("Only read-only state and selected verification/delivery routes are permitted")
         return io.StringIO(json.dumps(result))
 
     def verification(self, microvm_id):
@@ -107,7 +119,7 @@ class FakeCloud:
                 "spanId": str(seed * 1000 + index)} for index in range(1, 9 if resumed else 137)]
         roots = {name: "verify.js." + name for name in sorted(check.ROOT_CASES)}
         return {
-            "schema": 1, "version": "6.15.0", "passed": True,
+            "schema": 2, "version": "6.15.0", "passed": True,
             "checks": dict.fromkeys(check.REQUIRED_CHECKS, True), "state": state,
             "evidence": {
                 "before": state["before"], "run": state["run"],
@@ -121,6 +133,77 @@ class FakeCloud:
             },
         }
 
+    def delivery(self, microvm_id, scenario):
+        state = self.vms[microvm_id]["state"]
+        runtime = state["runtimeId"]
+        seed = int(microvm_id.split("-")[-1]) * 1000 + 100000
+
+        def identity(number):
+            return {"traceId": str((seed << 64) + number), "spanId": str(number)}
+
+        def request(number, span, operation, marker, outcome="accepted", received=1000):
+            return {
+                "sequence": number, "receivedAt": received, "completedAt": received + 100,
+                "status": 200 if outcome == "accepted" else 503 if outcome == "injected-http503" else None,
+                "outcome": outcome, "forwarded": outcome == "accepted", "bytes": 256,
+                "spans": [{
+                    "trace_id": str(int(span["traceId"]) & ((1 << 64) - 1)),
+                    "span_id": span["spanId"], "parent_id": "0", "name": operation,
+                    "service": check.SERVICE, "meta": {
+                        "runtime-id": runtime, "verify.delivery.marker": marker,
+                    }, "metrics": {"_dd.measured": 1},
+                }],
+            }
+
+        if scenario == "termination":
+            self.vms[microvm_id]["armedAtVerificationCount"] = state["verificationCount"]
+            self.vms[microvm_id]["armedAtResumeCount"] = state["resumeCount"]
+            return {"schema": 2, "scenario": "termination-armed", "armed": True,
+                    "marker": f"terminate-{microvm_id}", "runtimeId": runtime,
+                    "operation": "verify.js.termination"}
+        evidence = {"runtimeId": runtime, "forwardToAgent": True, "flushIntervalMs": 2000,
+                    "manualFlushCountBefore": 1, "manualFlushCountAfter": 1}
+        if scenario == "automatic":
+            span = identity(seed + 1)
+            marker, operation = f"automatic-{microvm_id}", "verify.js.automatic"
+            evidence.update(marker=marker, operation=operation, span=span, elapsedMs=2100, deadlineMs=10000,
+                            successfulRequests=[request(1, span, operation, marker)])
+            required = check.AUTOMATIC_CHECKS
+        elif scenario == "recovery":
+            cases = []
+            for index, mode in enumerate(("http503", "disconnect")):
+                start = 10000 * (index + 1)
+                marker, operation = f"{mode}-{microvm_id}", f"verify.js.recovery.{mode}"
+                fresh_marker = marker + "-fresh"
+                offered = [identity(seed + index * 10 + offset) for offset in range(2, 5)]
+                fresh = identity(seed + index * 10 + 5)
+                cases.append({
+                    "mode": mode, "marker": marker, "operation": operation, "generated": len(offered),
+                    "offeredSpans": offered, "freshSpan": fresh, "freshMarker": fresh_marker,
+                    "faultActiveAt": start, "restoredAt": start + 1000, "freshCreatedAt": start + 1050,
+                    "baselineEncoderCount": 0, "unexpectedErrors": [],
+                    "failureAttempts": [request(index * 2 + 2, offered[0], operation, marker,
+                                                "injected-" + ("http503" if mode == "http503" else "disconnect"),
+                                                start + 100)],
+                    "freshAcknowledgements": [request(index * 2 + 3, fresh, operation, fresh_marker,
+                                                      received=start + 1100)],
+                    "probes": [{"at": start + offset, "status": 200, "runtimeId": runtime, "elapsedMs": 1}
+                               for offset in (250, 500, 750)],
+                    "encoderCounts": [
+                        {"at": start - 100, "count": 0}, {"at": start + 50, "count": 3},
+                        {"at": start + 1000, "count": 0}, {"at": start + 1050, "count": 1},
+                        {"at": start + 1200, "count": 0},
+                    ],
+                    "encoderPeak": 3, "queueDrained": True, "elapsedMs": 1500, "deadlineMs": 20000,
+                })
+            evidence.update(cases=cases, unexpectedErrors=[])
+            required = check.RECOVERY_CHECKS
+        else:
+            raise AssertionError(f"Unknown scenario: {scenario}")
+        passed = scenario != self.delivery_failure
+        return {"schema": 2, "scenario": scenario, "passed": passed,
+                "checks": dict.fromkeys(required, passed), "evidence": evidence}
+
 
 class CloudTests(unittest.TestCase):
     def setUp(self):
@@ -128,7 +211,8 @@ class CloudTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.results = Path(self.directory.name) / "results"
         self.results.mkdir()
-        self.deployment = {"imageArn": "image", "imageVersion": "2.0", "version": "Run-1", "start": 100}
+        self.deployment = {"schema": 2, "imageArn": "image", "imageVersion": "2.0",
+                           "version": "Run-1", "start": 100}
         cloud.save(self.results / "deployment.json", self.deployment)
 
     def load(self, name, results=None):
@@ -148,7 +232,7 @@ class CloudTests(unittest.TestCase):
             self.assertIs(evidence["terminated"], True)
             self.assertIsInstance(evidence["terminatedAt"], (int, float))
 
-    def test_first_matching_pair_only_runs_three_verifications(self):
+    def test_first_matching_pair_runs_all_delivery_and_five_feature_samples(self):
         platform = FakeCloud(["A", "B", "A", "A"])
         self.run_with(platform)
         selection = self.load("selection.json")
@@ -160,7 +244,11 @@ class CloudTests(unittest.TestCase):
         self.assertEqual(platform.requests, [
             ("microvm-1", "GET", "/state"), ("microvm-2", "GET", "/state"),
             ("microvm-3", "GET", "/state"), ("microvm-1", "POST", "/verify"),
-            ("microvm-3", "POST", "/verify"), ("microvm-1", "POST", "/verify"),
+            ("microvm-3", "POST", "/verify"),
+            ("microvm-1", "POST", "/delivery/automatic"),
+            ("microvm-1", "POST", "/delivery/recovery"),
+            *[("microvm-1", "POST", "/verify") for _ in range(3)],
+            ("microvm-1", "POST", "/delivery/termination"),
         ])
         self.assertEqual(len(platform.vms), 3)
         for number in (1, 2, 3):
@@ -168,12 +256,23 @@ class CloudTests(unittest.TestCase):
         self.assertEqual(platform.vms["microvm-2"]["state"]["verificationCount"], 0)
         self.assertEqual(self.load("verification-1.json")["state"]["runtimeId"], "runtime-1")
         self.assertEqual(self.load("verification-2.json")["state"]["runtimeId"], "runtime-3")
-        self.assertEqual(self.load("verification-resumed.json")["state"]["verificationCount"], 2)
+        for cycle in range(1, 4):
+            state = self.load(f"verification-resumed-{cycle}.json")["state"]
+            self.assertEqual(state["verificationCount"], 1 + cycle)
+            self.assertEqual(state["runCount"], 1)
+            self.assertEqual(state["suspendCount"], cycle)
+            self.assertEqual(state["resumeCount"], cycle)
+            self.assertEqual(state["runtimeId"], "runtime-1")
+        self.assertFalse((self.results / "verification-resumed.json").exists())
         first, second = self.load("vm1.json"), self.load("vm2.json")
         self.assertEqual(first, self.load("candidates/vm1.json"))
         self.assertEqual(second, self.load("candidates/vm3.json"))
-        self.assertEqual(first["suspended"]["state"], "SUSPENDED")
-        self.assertEqual(first["resumed"]["state"], "RUNNING")
+        self.assertEqual([cycle["cycle"] for cycle in first["cycles"]], [1, 2, 3])
+        for cycle in first["cycles"]:
+            self.assertEqual(cycle["suspended"]["state"], "SUSPENDED")
+            self.assertEqual(cycle["resumed"]["state"], "RUNNING")
+            self.assertLessEqual(cycle["suspended"]["time"], cycle["resumed"]["time"])
+        self.assertNotIn("cycles", second)
         self.assertEqual(second["microvmId"], "microvm-3")
         checks = self.load("clone-checks.json")
         self.assertIs(checks["passed"], True)
@@ -181,6 +280,14 @@ class CloudTests(unittest.TestCase):
         self.assertTrue(all(check.evaluate_guest(self.results).values()))
         self.assert_cleaned(platform, (1, 2, 3))
         self.assertEqual(platform.termination_attempts, ["microvm-1", "microvm-2", "microvm-3"])
+        self.assertEqual(self.load("termination-armed.json")["runtimeId"], "runtime-1")
+        self.assertEqual(platform.events[-7][0], "POST /delivery/termination")
+        self.assertEqual([event[0] for event in platform.events[-6:]],
+                         ["terminate-microvm", "get-microvm"] * 3)
+        self.assertEqual(platform.vms["microvm-1"]["armedAtVerificationCount"], 4)
+        self.assertEqual(platform.vms["microvm-1"]["armedAtResumeCount"], 3)
+        self.assertNotIn("armedAtVerificationCount", platform.vms["microvm-2"])
+        self.assertNotIn("armedAtVerificationCount", platform.vms["microvm-3"])
         for operation, args in platform.calls:
             if operation == "run-microvm":
                 self.assertEqual(args[args.index("--maximum-duration-in-seconds") + 1], "600")
@@ -193,7 +300,72 @@ class CloudTests(unittest.TestCase):
         self.assertEqual(self.load("selection.json")["selected"], [2, 3])
         self.assertEqual(self.load("vm1.json")["microvmId"], "microvm-2")
         self.assertEqual(platform.vms["microvm-1"]["state"]["verificationCount"], 0)
+        self.assertEqual(self.load("termination-armed.json")["runtimeId"], "runtime-2")
+        self.assertNotIn("armedAtVerificationCount", platform.vms["microvm-1"])
         self.assert_cleaned(platform, (1, 2, 3))
+
+    def test_missing_resume_sample_fails_before_arming_and_cleans_every_candidate(self):
+        platform = FakeCloud(["A", "B", "A"])
+        original_save = cloud.save
+
+        def omit_second_resume(path, value):
+            if path.name != "verification-resumed-2.json":
+                original_save(path, value)
+
+        with patch.object(cloud, "save", side_effect=omit_second_resume):
+            with self.assertRaises(FileNotFoundError):
+                self.run_with(platform)
+        self.assertTrue((self.results / "verification-resumed-3.json").exists())
+        self.assertFalse((self.results / "termination-armed.json").exists())
+        self.assertFalse(any(path == "/delivery/termination" for _, _, path in platform.requests))
+        self.assert_cleaned(platform, (1, 2, 3))
+
+    def test_missing_aws_cycle_metadata_fails_before_arming_and_cleans_every_candidate(self):
+        platform = FakeCloud(["A", "B", "A"])
+        original_save = cloud.save
+
+        def omit_second_cycle(path, value):
+            value = copy.deepcopy(value)
+            if isinstance(value, dict) and "cycles" in value:
+                value["cycles"] = [cycle for cycle in value["cycles"] if cycle["cycle"] != 2]
+            original_save(path, value)
+
+        with patch.object(cloud, "save", side_effect=omit_second_cycle):
+            with self.assertRaisesRegex(RuntimeError, "Snapshot clone/resume assertions failed"):
+                self.run_with(platform)
+        self.assertIs(self.load("clone-checks.json")["passed"], False)
+        self.assertFalse((self.results / "termination-armed.json").exists())
+        self.assert_cleaned(platform, (1, 2, 3))
+
+    def test_midcycle_failure_preserves_partial_evidence_and_cleans_every_candidate(self):
+        platform = FakeCloud(["A", "B", "A"], cycle_failure=2)
+        with self.assertRaisesRegex(RuntimeError, "resume cycle 2 failed"):
+            self.run_with(platform)
+        first = self.load("vm1.json")
+        self.assertEqual(first, self.load("candidates/vm1.json"))
+        self.assertEqual([cycle["cycle"] for cycle in first["cycles"]], [1, 2])
+        self.assertEqual(first["cycles"][1]["suspended"]["state"], "SUSPENDED")
+        self.assertNotIn("resumed", first["cycles"][1])
+        self.assertTrue((self.results / "verification-resumed-1.json").exists())
+        self.assertFalse((self.results / "verification-resumed-2.json").exists())
+        self.assertFalse((self.results / "termination-armed.json").exists())
+        self.assertFalse(any(path == "/delivery/termination" for _, _, path in platform.requests))
+        self.assert_cleaned(platform, (1, 2, 3))
+
+    def test_delivery_failure_is_saved_and_cleans_every_candidate_without_arming(self):
+        for scenario in ("automatic", "recovery"):
+            with self.subTest(scenario=scenario):
+                results = self.results / scenario
+                results.mkdir()
+                cloud.save(results / "deployment.json", self.deployment)
+                platform = FakeCloud(["A", "B", "A"], delivery_failure=scenario)
+                with self.assertRaisesRegex(RuntimeError, f"delivery-{scenario}.json"):
+                    self.run_with(platform, results)
+                self.assertIs(self.load(f"delivery-{scenario}.json", results)["passed"], False)
+                self.assertFalse((results / "verification-resumed-1.json").exists())
+                self.assertFalse((results / "termination-armed.json").exists())
+                self.assertFalse(any(path == "/delivery/termination" for _, _, path in platform.requests))
+                self.assert_cleaned(platform, (1, 2, 3), results)
 
     def test_six_unmatched_candidates_are_inconclusive_and_all_cleaned(self):
         platform = FakeCloud(["A", "B", "C", "D", "E", "F", "A"])
@@ -278,8 +450,9 @@ class CloudTests(unittest.TestCase):
         with patch.object(cloud, "aws", side_effect=platform.aws):
             first = cloud.launch(self.results, 1, self.deployment, selection)
             second = cloud.launch(self.results, 2, self.deployment, selection)
-            first.update(end=123, suspended={"state": "SUSPENDED", "time": 120},
-                         resumed={"state": "RUNNING", "time": 121})
+            first.update(end=123, cycles=[{"cycle": 1,
+                         "suspended": {"state": "SUSPENDED", "time": 120},
+                         "resumed": {"state": "RUNNING", "time": 121}}])
             cloud.save(self.results / "vm1.json", first)
             cloud.save(self.results / "vm2.json", second)
             platform.termination_failures.add("microvm-1")
@@ -291,7 +464,7 @@ class CloudTests(unittest.TestCase):
             cloud.terminate(self.results)
             self.assert_cleaned(platform, (1, 2))
             self.assertEqual(self.load("vm1.json"), self.load("candidates/vm1.json"))
-            for key in ("end", "suspended", "resumed", "start", "imageArn", "imageVersion"):
+            for key in ("end", "cycles", "start", "imageArn", "imageVersion"):
                 self.assertEqual(self.load("vm1.json")[key], first[key])
             before = {path: path.read_bytes() for path in self.results.rglob("*.json")}
             cloud.terminate(self.results)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build -> start a fresh guest -> execute -> evaluate -> collect logs -> stop.
 # Like sample-verify-app/run-all.sh, keep numbered logs and a timestamped summary.
-# This first scenario runs locally in Docker; it does not deploy to AWS.
+# Local native scenarios only; this does not deploy to AWS.
 # Optional local smoke test. run-all.sh owns AWS deployment and Datadog evaluation.
 # Config: WHEEL, SERVERLESS_INIT_BIN, IMAGE, PORT, RESULTS_DIR.
 set -uo pipefail
@@ -83,7 +83,7 @@ path = Path(sys.argv[1])
 if not path.is_file():
     sys.exit("FAIL: driver produced no verification.json; see 20-check.txt")
 result = json.loads(path.read_text())
-checks = result.get("checks", {})
+checks = {**result.get("checks", {}), **result.get("local_delivery", {}).get("checks", {})}
 passed = sum(value is True for value in checks.values())
 ok = bool(checks) and passed == len(checks) and result.get("passed") is True
 print(f"{'PASS' if ok else 'FAIL'}: {passed}/{len(checks)} checks")

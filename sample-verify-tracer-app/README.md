@@ -25,13 +25,17 @@ The script:
 1. Copies the wheel and local serverless-init binary into the build context,
    packages them, uploads to S3, and creates or updates the ARM64 MicroVM image.
 2. Waits for the build and runs a snapshot clone. The platform calls `/run` once;
-   the script calls only `/verify`, never a synthetic `/run` on the running VM.
-3. Saves guest assertions, terminates the VM, and waits for termination.
-4. Waits 180 seconds for ingestion, captures CloudWatch logs, and evaluates
+   the script runs the original `/verify`, native automatic export, and intake
+   failure/recovery checks. It never synthesizes `/run` on the running VM.
+3. Performs three actual AWS suspend/resume cycles, waiting for `SUSPENDED` and
+   `RUNNING`. Each resume reruns the common feature suite and automatic export.
+4. Arms the final termination trace/log, terminates the VM, and waits for termination.
+5. Waits 180 seconds for ingestion, captures CloudWatch logs, and evaluates
    Datadog trace metrics and logs under `dd-auth`. The known failing standard RSS
    backend assertion is explicitly skipped by default.
-5. Writes numbered logs, `deployment.json`, `vm.json`, `verification.json`,
-   `cloudwatch.json`, `evaluation.json`, and `summary.txt` under
+6. Writes numbered logs, deployment/VM/core verification JSON, delivery evidence,
+   `verification-resumed-{1,2,3}.json`, `automatic-resumed-{1,2,3}.json`,
+   `termination-armed.json`, CloudWatch/backend evidence, and a summary under
    `results/<UTC timestamp>-<pid>/`. A failed step or assertion returns nonzero.
 
 The exit trap terminates a created VM after failures too. Each VM also has a
@@ -62,12 +66,15 @@ dd-auth --domain dddev.datadoghq.com -- python3 check.py \
   results/<run> --check-runtime-metrics --output results/<run>/evaluation-strict.json
 ```
 
-Run the evaluator regression tests with `make test`; they need no credentials.
+Run the regression tests with `make test`; they need no credentials. The wire
+tests require `msgpack==1.1.2` in the host Python environment (use a virtualenv).
+The pinned native wheel is exercised separately inside ARM64 Docker.
 
-New deployments use schema 3. The evaluator requires every #20956 assertion;
-a missing check fails even if the guest reports `passed=true`. Schema 2 results
-must include their original five telemetry checks, and older deployments are
-explicitly marked as lacking the strengthened schema 3 coverage.
+New deployments use schema 4. Every #20956, common-feature, and delivery phase
+is required; a missing phase fails even if the guest reports `passed=true`.
+Historical schema 3 still requires its subscriber/native telemetry checks;
+schema 2 requires its original five telemetry checks. Results below schema 4
+explicitly lack the four new delivery scenarios; re-evaluation cannot add coverage.
 
 ### Environment overrides
 
@@ -105,7 +112,11 @@ The forwarded `/ready` hook opens a stale span, retains its context, buffers a
 completed trace, accumulates CPU/GC activity, and holds a retiring writer's
 `flush_queue()` at entry with a threading event. AWS snapshots that state. The
 periodic runtime-metric thread is paused while its collectors and refresh
-subscriptions stay active. A repeated `/ready` is idempotent.
+subscriptions stay active. The retired trace writer's periodic thread is also
+paused with its pinned fork-stop primitive, without flushing/shutting down its
+exporter. Its replacement keeps the native one-second interval. This preserves
+the seeded buffered trace without a process-wide 3600-second interval override.
+A repeated `/ready` is idempotent.
 
 After restore, Flask instrumentation must refresh identity before the forwarded
 `/run` handler executes. An outer WSGI wrapper measures that request. `/verify`
@@ -189,17 +200,65 @@ the expected service. `verification.json` includes `features` and `feature_spans
 so parent IDs, errors, tags, and context assertions can be inspected directly.
 Expected exception and HTTP 500 messages in the guest log are part of the tests.
 
-For new deployments (`verification_schema=3`), `check.py` requires every feature
-assertion to be present, queries APM hit metrics for all six operations, and
-requires an error metric for `verify.feature.error`. A missing feature trace or
-error metric fails evaluation. Re-evaluating older results reports the expanded
-suite as skipped; it does not claim those new scenarios ran.
+For schema 4, `check.py` independently evaluates exported feature payloads from
+the initial restore and all three resumes. Roots must be distinct between
+samples. It requires at least four APM hits for each of the six operations,
+four errors for `verify.feature.error`, and matching structured feature logs in
+both CloudWatch and Datadog. A missing sample, feature, error count, or log fails.
+HTTP checks count distinct span IDs: retransmitting the same span is not duplicate
+instrumentation, but additional client/server spans for one request fail. This
+new assertion is required for schema 4, not retroactively for schema 2/3 evidence.
 
-All dependencies are local to the guest; the HTTP test does not call a public
-service. These scenarios cover one restored VM. They do not cover suspend/resume,
-cross-VM isolation, load testing, or every tracer integration. See
+Dependencies are local to the guest; the HTTP test does not call a public
+service. The suite covers one restored VM and its repeated lifecycle. It does
+not cover cross-VM isolation, load testing, or every tracer integration. See
 [HANDOFF.md](HANDOFF.md) for the separate RSS backend investigation and preserved
 historical evidence.
+
+## Delivery and repeated lifecycle scenarios
+
+| Scenario | Required evidence |
+| --- | --- |
+| Automatic export | A new measured root reaches the intake using the real `NativeWriter` default **one-second** timer. Harness explicit-flush count does not change. Runs initially and after each of three resumes. |
+| Intake outage/recovery | Independently inject trace-only HTTP 503 and connection disconnects; offer 24 independent roots per case; observe an actual failed attempt and three successful `/health` probes while the fault is active; restore the intake and require a new root's completed acknowledgement. |
+| Repeated suspend/resume | Three ordered AWS `SUSPENDED` → `RUNNING` transitions; the same runtime ID; exact run/suspend/resume counters; fresh exported feature spans and a working automatic exporter after every cycle. |
+| Final termination batch | Arming creates no span. The actual terminate hook creates a final measured root and correlated marker log, waits for native export without an explicit flush, and returns so serverless-init can flush its final batch. Require one hook, one marker/root, and matching CloudWatch/Datadog result and marker logs. |
+
+`POST /delivery/automatic`, `/delivery/recovery`, and `/delivery/termination`
+drive the phases; the last endpoint only arms termination. `POST /verify/features`
+reruns common features without replaying the one-shot identity/drain setup.
+Automatic/final phases have 10-second deadlines; each outage/recovery case has a
+20-second deadline. The platform terminate hook allows 30 seconds and the
+serverless-init app-forwarding timeout is 15 seconds. The terminate hook is not
+a promise that the platform sends SIGTERM to the application.
+
+Delivery evidence records request IDs, operation/marker/runtime tags, timing,
+HTTP outcome, response completion, and whether original bytes were forwarded to
+the Agent. A decoded request, 503, disconnect, partial upstream body, or failed
+trace response write is never an acknowledgement. AWS evaluation requires
+actual Agent forwarding, plus backend hits for all four delivery operations
+(at least four for automatic export) and the final correlated logs.
+
+Following the AWS-tested JS evaluator, dotted fields such as `verify.marker`,
+`_dd.measured`, and `dd.trace_id` may also use Datadog's nested object form.
+Resumed feature logs and final results compare those representations without
+dropping nulls or unrelated values. Final backend results are independently
+validated for the exact marker, measured root, service, span IDs, and correlation.
+Explicit-flush counters must also remain continuous between automatic export
+and recovery. JavaScript-only absent Remote Config IDs are not a Python rule.
+For backend logs only, the evaluator restores omitted `features.errors` and
+`evidence.unexpected_errors` arrays when the corresponding guest/CloudWatch
+reference explicitly contains `[]`. Explicit nulls, non-empty errors, missing
+parent objects, and other missing fields still fail; guest and CloudWatch
+validation is unchanged.
+
+Recovery verifies **bounded offered work**, not global memory/backpressure or
+native queue-depth limits. It does not promise lossless delivery during an outage.
+Expected native exporter error messages during fault injection are retained.
+Non-trace response cancellations during teardown (observed for `/info`) are
+retained under `cancelled_responses`; trace response and Agent upstream failures
+remain failures. Native integer IDs/timestamps in wire log evidence are serialized
+as strings when needed to avoid precision loss in JSON log pipelines.
 
 ## Optional local smoke test
 
@@ -207,11 +266,15 @@ historical evidence.
 ./run-local.sh
 ```
 
-This preserves the earlier Docker workflow without credentials. It builds the
-same image, overrides the serverless-init entrypoint with `ddtrace-run`, prepares
-state, synthesizes `/run`, evaluates local payloads, and cleans up. Its default
-port is 18080; `PORT` and `IMAGE` override the local port and container/image name.
-Forwarding to Datadog is disabled in local mode. Results are local evidence only.
+The credential-free Docker workflow builds the same ARM64 image and overrides
+serverless-init with `ddtrace-run`. It exercises the native lifecycle controls,
+initial refresh, automatic export, both outages, three synthetic hook cycles
+with fresh features/automatic export, and the final hook. It saves every phase
+plus `vm-local.json` and cleans up. Its default port is 18080; `PORT` and `IMAGE`
+override the local port and container/image name.
+
+Forwarding is disabled. These results prove local native-tracer behavior, not
+Firecracker freeze/thaw, real Agent final flushing, or Datadog ingestion.
 
 Individual local steps remain `make build`, `make start PORT=18080`,
 `make check PORT=18080`, and `make stop`. `make package` copies both artifacts
@@ -250,3 +313,32 @@ ID, or a bookkeeping flag alone cannot satisfy them.
 Wheel hashes identify the tested artifact; they do not prove its source revision.
 Rebuild the wheel after tracer edits and retain the source commit alongside the
 run's wheel hash. An older wheel with the same version string is insufficient.
+
+## Verification of schema 4 changes
+
+- ARM64 AL2023 `./run-local.sh` passed **119/119** checks in
+  `results/20261102T052131Z-13534`, including both native lifecycle controls.
+  Automatic export used the one-second native timer and the final hook exported
+  with explicit-flush count unchanged. Final counters were
+  run=1, suspend=3, resume=3, terminate=1.
+- Regression suites passed, including real HTTP partial/rejected/disconnected
+  responses, missing/malformed evidence, cancelled negotiation, optional native
+  root `parent_id`, and cleanup after a failed second cycle.
+  The 43 affected evaluator/feature/delivery regression tests passed after
+  porting the JS log-normalization and duplicate-instrumentation checks.
+- A controlled backend-fixture smoke exercised the full schema 4 evaluator with
+  captured native payload shapes and Datadog dotted-key/numeric remapping.
+  Capture-only evidence failed the Agent-forwarding gates. Explicit synthetic
+  acknowledgement fixtures passed; wrong nested markers, measurements,
+  services, IDs, and counter discontinuities still failed. These fixtures are
+  not an AWS or Datadog ingestion test.
+- AWS run `results/20261102T052643Z-18896` recorded **162/166** passing checks
+  with one RSS backend check skipped. All four failures were omitted empty error
+  arrays in the captured Datadog logs. After the backend-only normalization fix,
+  offline evaluation of the unmodified saved responses passed **166/166**, with
+  the same RSS check skipped. Null/non-empty errors, changed span IDs, and rejected
+  acknowledgements still failed in negative controls. No new deployment or live
+  Datadog query was performed for this re-evaluation.
+- All **65** Python regression tests passed using Python 3.10 and `msgpack==1.1.2`,
+  including backend empty-array omissions and rejection of malformed error fields.
+
