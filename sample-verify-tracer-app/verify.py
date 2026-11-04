@@ -14,6 +14,7 @@ from delivery_checks import evaluate_phase
 from delivery_checks import evaluate_termination
 from lifecycle_checks import SCHEMA
 from lifecycle_checks import required_telemetry_checks
+from retirement_checks import evaluate_retirements
 
 
 def main():
@@ -58,6 +59,9 @@ def main():
         post("/aws/lambda-microvms/runtime/v1/run", timeout=2)
         elapsed = time.monotonic() - start
         result = post("/verify")
+        retirement_checks = evaluate_retirements(result.get("retirements"))
+        result["checks"]["required_retirement_scenarios_present"] = retirement_checks.keys() <= result["checks"].keys()
+        result["checks"].update(retirement_checks)
         result["checks"]["required_telemetry_scenarios_present"] = result.get(
             "verification_schema"
         ) == SCHEMA and required_telemetry_checks(SCHEMA).issubset(result["checks"])

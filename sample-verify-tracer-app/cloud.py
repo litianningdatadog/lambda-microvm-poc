@@ -102,6 +102,8 @@ def deploy(results):
             "feature_checks.py",
             "lifecycle_checks.py",
             "lifecycle_control.py",
+            "retirement_checks.py",
+            "retirement_control.py",
             "requirements.txt",
             wheel,
             "serverless-init-linux-arm64",

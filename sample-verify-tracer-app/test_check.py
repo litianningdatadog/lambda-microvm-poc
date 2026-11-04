@@ -155,6 +155,43 @@ class EvaluationTest(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertTrue(result["passed"])
 
+    def enable_retirements(self):
+        from retirement_checks import evaluate_retirements
+        from test_retirement_checks import retirement_evidence
+
+        self.enable_features()
+        deployment = json.loads((self.results / "deployment.json").read_text())
+        deployment["verification_schema"] = 5
+        self.write("deployment.json", deployment)
+        self.guest["verification_schema"] = 5
+        self.guest["retirements"] = retirement_evidence()
+        self.guest["checks"].update(evaluate_retirements(self.guest["retirements"]))
+        self.save_guest()
+
+    def test_schema_five_rechecks_retirement_evidence(self):
+        self.enable_retirements()
+        result = self.evaluate()[1]
+        self.assertTrue(result["checks"]["guest_retirement_scenarios_present"])
+        self.assertTrue(result["checks"]["retirement_21429_configure_stop"])
+        # A forged summary must not conceal the regression in the raw case evidence.
+        self.guest["retirements"]["configure_stop"]["span_processors_rebuilt"] = False
+        self.save_guest()
+        result = self.evaluate()[1]
+        self.assertFalse(result["checks"]["retirement_21429_configure_stop"])
+
+    def test_schema_five_cannot_omit_evidence_or_guest_assertions(self):
+        self.enable_retirements()
+        del self.guest["checks"]["21429_shutdown_retired_failures"]
+        self.save_guest()
+        self.assertFalse(self.evaluate()[1]["checks"]["guest_retirement_scenarios_present"])
+        del self.guest["retirements"]
+        self.save_guest()
+        self.assertFalse(self.evaluate()[1]["checks"]["retirement_21429_configure_stop"])
+
+    def test_historical_schema_explicitly_skips_retirement_failures(self):
+        result = self.evaluate()[1]
+        self.assertIn("retirement_failure_scenarios", result["skipped"])
+
     def test_missing_runtime_metric_still_fails(self):
         self.runtime_present = False
         status, result = self.evaluate(check_runtime_metrics=True)

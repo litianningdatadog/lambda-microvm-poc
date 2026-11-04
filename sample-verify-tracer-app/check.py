@@ -17,6 +17,7 @@ from delivery_checks import log_values_equal
 from feature_checks import FEATURE_OPERATIONS
 from feature_checks import evaluate_features
 from lifecycle_checks import required_telemetry_checks
+from retirement_checks import evaluate_retirements
 
 
 RSS_CHECK = "datadog_runtime_metrics_new_identity"
@@ -73,6 +74,16 @@ def evaluate(results, output=None, check_runtime_metrics=False):
     diagnostics = {}
     skipped = {}
     schema = deployment.get("verification_schema", 1)
+    if schema >= 5:
+        retirement_checks = evaluate_retirements(guest.get("retirements"))
+        checks.update({"retirement_" + name: ok for name, ok in retirement_checks.items()})
+        checks["guest_retirement_scenarios_present"] = (
+            guest.get("verification_schema") == schema and retirement_checks.keys() <= guest["checks"].keys()
+        )
+    else:
+        skipped["retirement_failure_scenarios"] = (
+            "Historical schema predates #21429 cleanup-error controls; deploy again for schema 5 coverage."
+        )
     samples = []
     armed = {}
     if schema >= 4:

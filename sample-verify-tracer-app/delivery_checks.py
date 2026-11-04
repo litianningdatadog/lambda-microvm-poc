@@ -1,4 +1,4 @@
-"""Pure, fail-closed assertions over schema-4 delivery evidence.
+"""Pure, fail-closed assertions over schema-4/5 delivery evidence.
 
 Decoded receipt is not delivery: a matching request must have finished its
 successful response, and AWS evidence must show actual Agent forwarding.
@@ -310,7 +310,7 @@ def evaluate_phase(value, runtime_id, require_forward=True):
     forward = evidence.get("forward_to_agent")
     before, after = evidence.get("manual_flush_count_before"), evidence.get("manual_flush_count_after")
     checks = {
-        "delivery_schema": type(value.get("verification_schema")) is int and value["verification_schema"] == 4,
+        "delivery_schema": type(value.get("verification_schema")) is int and value["verification_schema"] in (4, 5),
         "delivery_summary": known and _summary(value, _PHASE_CHECKS[scenario]),
         "delivery_verification_id": _text(value.get("verification_id")),
         "delivery_identity": _text(runtime_id) and value.get("runtime_id") == runtime_id
@@ -376,7 +376,7 @@ def evaluate_cycles(vm, samples, runtime_id):
             and sample.get("verification_id") == verification_id
         )
         checks["cycles_features"] &= (
-            type(sample.get("verification_schema")) is int and sample["verification_schema"] == 4
+            type(sample.get("verification_schema")) is int and sample["verification_schema"] in (4, 5)
             and sample.get("scenario") == "resumed-features"
             and type(sample.get("cycle")) is int and sample["cycle"] == index
             and _summary(sample) and bool(_dict(sample.get("features")))
@@ -396,7 +396,7 @@ def evaluate_termination(armed, value, runtime_id, require_forward=True):
     span = _dict(evidence.get("span"))
     correlation = _dict(evidence.get("log_correlation"))
     checks["termination_armed"] = (
-        type(armed.get("verification_schema")) is int and armed["verification_schema"] == 4
+        type(armed.get("verification_schema")) is int and armed["verification_schema"] in (4, 5)
         and armed.get("scenario") == "termination-armed" and armed.get("armed") is True
         and armed.get("runtime_id") == runtime_id and _text(runtime_id)
         and armed.get("operation") == DELIVERY_OPERATIONS[3]

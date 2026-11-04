@@ -133,6 +133,19 @@ class DeliveryChecksTest(unittest.TestCase):
         self.assertPass(evaluate_termination(arm(), phase("termination"), RUNTIME))
         self.assertPass(evaluate_cycles(*cycle_evidence(), RUNTIME))
 
+    def test_schema_five_preserves_delivery_and_resumed_feature_validation(self):
+        for scenario in ("automatic", "recovery", "termination"):
+            value = phase(scenario)
+            value["verification_schema"] = 5
+            self.assertPass(evaluate_phase(value, RUNTIME))
+        armed, final = arm(), phase("termination")
+        armed["verification_schema"] = final["verification_schema"] = 5
+        self.assertPass(evaluate_termination(armed, final, RUNTIME))
+        vm, samples = cycle_evidence()
+        for sample in samples:
+            sample["verification_schema"] = 5
+        self.assertPass(evaluate_cycles(vm, samples, RUNTIME))
+
     def test_capture_is_only_accepted_when_explicitly_local(self):
         for scenario in ("automatic", "recovery", "termination"):
             value = phase(scenario, forwarded=False)
@@ -152,7 +165,7 @@ class DeliveryChecksTest(unittest.TestCase):
             value = phase()
             value.pop(key)
             self.assertFail(evaluate_phase(value, RUNTIME))
-        for schema in (None, 3, True, "4", 5):
+        for schema in (None, 3, True, "4", 6):
             value = phase()
             value["verification_schema"] = schema
             self.assertFail(evaluate_phase(value, RUNTIME))

@@ -1,5 +1,26 @@
 # Tracer verification: RSS query investigation handoff
 
+## November 4 cleanup-error coverage update
+
+The sample now emits schema 5 and requires the #21429 `f7e1792cdd` cleanup-error
+probes during initial `/verify`. See the README's cleanup-error section for the
+cases and fault-injection boundaries. Reconfiguration must finish after a retired
+writer flush/stop failure; retired-only failures must not prevent tracer shutdown
+cleanup; active-writer and replacement-construction errors must still propagate.
+The local non-MicroVM control preserves its previous exception behavior.
+
+Host regressions passed 73 tests. The ARM64 local workflow passed 125/125 checks
+in `results/20261104T175602Z-31610`; replacing only the processor with the prior
+`522078478d` module failed the intended new probes. Evidence and wheel hashes are
+in that directory. The wheel's processor source matches `f7e1792cdd` exactly.
+The schema-5 AWS run `results/20261104T180028Z-34388` passed 177/177 active checks
+on image version 8.0, including the cleanup-error probes, three real suspend/resume
+cycles, and final termination. The deployed archive matches the local build inputs;
+replaying the current evaluator against captured backend responses reproduces the
+saved evaluation. The standard RSS backend assertion remains explicitly skipped;
+guest RSS emission/identity checks passed. Historical schemas explicitly report
+that they lack the new cleanup-error coverage.
+
 ## Current state
 
 The expanded suite passed on real AWS in

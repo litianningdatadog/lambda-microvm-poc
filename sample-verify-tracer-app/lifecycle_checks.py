@@ -1,6 +1,6 @@
 """Pure checks shared by the guest, evaluator, and local lifecycle controls."""
 
-SCHEMA = 4
+SCHEMA = 5
 TELEMETRY_CHECKS = frozenset(
     {
         "20956_worker_replaced",

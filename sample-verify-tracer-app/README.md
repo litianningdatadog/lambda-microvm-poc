@@ -68,13 +68,15 @@ dd-auth --domain dddev.datadoghq.com -- python3 check.py \
 
 Run the regression tests with `make test`; they need no credentials. The wire
 tests require `msgpack==1.1.2` in the host Python environment (use a virtualenv).
+With uv, run `uv run --no-project --with msgpack==1.1.2 make test`.
 The pinned native wheel is exercised separately inside ARM64 Docker.
 
-New deployments use schema 4. Every #20956, common-feature, and delivery phase
+New deployments use schema 5. Every #21429 cleanup-error, #20956, common-feature, and delivery phase
 is required; a missing phase fails even if the guest reports `passed=true`.
 Historical schema 3 still requires its subscriber/native telemetry checks;
 schema 2 requires its original five telemetry checks. Results below schema 4
 explicitly lack the four new delivery scenarios; re-evaluation cannot add coverage.
+Results below schema 5 explicitly skip the cleanup-error controls described below.
 
 ### Environment overrides
 
@@ -128,7 +130,7 @@ The app never calls `refresh_identity()` directly.
 | PR | Guest evidence |
 | --- | --- |
 | [#20955](https://github.com/DataDog/dd-trace-py/pull/20955) | Old writer discarded; buffered, open, and retained-context spans absent from captured payloads; fresh trace uses the new runtime ID. |
-| [#21429](https://github.com/DataDog/dd-trace-py/pull/21429) | `/run` and span work finish in under one second while retirement is held; retirement finishes after release. |
+| [#21429](https://github.com/DataDog/dd-trace-py/pull/21429) | `/run` and span work finish in under one second while retirement is held; retirement finishes after release; cleanup errors allow configuration/shutdown to complete, with active-writer errors preserved. |
 | [#20956](https://github.com/DataDog/dd-trace-py/pull/20956) | Worker and identity replaced; both obsolete writer callbacks absent; current callback registered exactly once; telemetry marker and native exporter request/response metrics emitted under the new ID. |
 | [#20957](https://github.com/DataDog/dd-trace-py/pull/20957) | CPU, wall-clock, and GC baselines reseeded; collector identity updated; runtime metrics emitted with the new ID. |
 
@@ -303,6 +305,38 @@ an in-process HTTP intake. Nothing is forwarded to Datadog.
   release, the next send must apply that handle and emit native `trace_api.*`
   request/response metrics under the new runtime ID. This is a local lifecycle
   control; the AWS scenario continues to rely exclusively on platform hooks.
+- `retirement_control.py` runs once with MicroVM detection enabled and once
+  without it. These controls cover the cleanup-error fixes in
+  [`f7e1792cdd`](https://github.com/DataDog/dd-trace-py/commit/f7e1792cdd034e788c9e84765600d7056acd9cf0).
+
+### Cleanup-error controls for #21429
+
+During the initial `/verify`, dedicated tracer instances exercise the following
+cases without shutting down the application tracer or calling `refresh_identity()`.
+Native writers, services, processors, and HTTP exports are real; only the named
+failure operation is injected. Expected exception warnings are retained. The two
+cleanup warning messages have rate limiting disabled only while captured, so
+repeated probes can check each warning and its original exception.
+
+| Case | Required evidence |
+| --- | --- |
+| Retired `flush_queue()` fails | Configuration returns; writer, span processors, context provider, and user processor are updated; a tagged trace reaches the intake with the current runtime ID; the old writer is cleaned up. |
+| Retired `stop()` fails | The same configuration/export assertions pass; the failed retirement stays reachable and shutdown retries it successfully. |
+| Two retired writers keep failing | Shutdown attempts both and the active writer, logs both original errors, then disables the tracer, clears its executor/context, replaces `start_span`, and unregisters its exit/fork hooks. A subsequent retry cleans up both workers. |
+| Active writer also fails | Both retirements are still attempted/logged, but the original active-writer exception propagates. Removing the injected faults permits complete cleanup. |
+| Replacement construction fails | The original error propagates and the installed writer, processors, context provider, and retirement registry remain unchanged. |
+
+The local non-MicroVM control requires flush/stop errors during configuration
+and active-writer errors during shutdown to continue propagating. It is run in
+a separate process because MicroVM detection happens at tracer initialization.
+
+Schema 5 stores per-case `retirements` evidence in `verification.json` and the
+structured result log. Both the local driver and AWS evaluator recompute the
+five required case verdicts; a missing case/field or a false result cannot be
+hidden by `passed=true`. Old result files remain readable and explicitly report
+their missing coverage. Existing real snapshot, suspend/resume, and final-batch
+scenarios remain part of the workflow. These failure probes do not cover every
+native shutdown/downgrade race or measure throughput.
 
 The restored guest inspects weak callback membership directly, including the
 writer retired by `configure()` and the writer active immediately before `/run`.
@@ -313,6 +347,27 @@ ID, or a bookkeeping flag alone cannot satisfy them.
 Wheel hashes identify the tested artifact; they do not prove its source revision.
 Rebuild the wheel after tracer edits and retain the source commit alongside the
 run's wheel hash. An older wheel with the same version string is insufficient.
+
+## Verification of schema 5 changes
+
+- Host regressions: **73 passed**, using the isolated uv command above.
+- ARM64 AL2023 local workflow: **125/125** checks passed in
+  `results/20261104T175602Z-31610`, including all four native lifecycle controls,
+  initial restore probes, three synthetic hook cycles, and final termination.
+- The tested wheel's processor source exactly matches `f7e1792cdd`; its SHA256
+  is recorded in that run's `artifacts.txt`.
+- Replacing only that processor module with its previous `522078478d` version
+  makes both configuration failure cases and the retired-only shutdown case
+  fail. The active-writer propagation and construction-failure guards still pass.
+  This negative control is saved as `retirement-before-fix.json` and `.log` in
+  the same run directory.
+- Real AWS schema-5 run `results/20261104T180028Z-34388`, image version **8.0**:
+  **177/177** active checks passed, including cleanup-error probes, three actual
+  suspend/resume cycles, and final termination. The standard RSS backend assertion
+  remains explicitly skipped; guest RSS emission/identity checks passed.
+- The deployed archive matches all 14 local build inputs byte-for-byte. Replaying
+  the current evaluator against the captured Datadog responses reproduces the
+  saved evaluation exactly; this replay does not issue fresh backend queries.
 
 ## Verification of schema 4 changes
 

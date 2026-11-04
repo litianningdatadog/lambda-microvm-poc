@@ -8,7 +8,7 @@ COPY ${DD_TRACE_WHEEL} /tmp/${DD_TRACE_WHEEL}
 RUN python3.12 -m pip install --target /dd_tracer/python/ --no-cache-dir /tmp/${DD_TRACE_WHEEL} \
     && sha256sum /tmp/${DD_TRACE_WHEEL} > /app/wheel.sha256 \
     && rm /tmp/${DD_TRACE_WHEEL}
-COPY app.py intake.py delivery.py delivery_checks.py features.py feature_checks.py lifecycle_checks.py lifecycle_control.py .
+COPY app.py intake.py delivery.py delivery_checks.py features.py feature_checks.py lifecycle_checks.py lifecycle_control.py retirement_checks.py retirement_control.py .
 # Copied into the build context by make prepare, matching sample-verify-app.
 COPY serverless-init-linux-arm64 /serverless-init
 RUN chmod +x /serverless-init

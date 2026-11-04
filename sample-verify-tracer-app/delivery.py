@@ -12,6 +12,7 @@ from ddtrace import tracer
 from ddtrace.internal.runtime import get_runtime_id
 
 import intake
+from lifecycle_checks import SCHEMA
 
 
 AUTOMATIC_OPERATION = "verify.delivery.automatic"
@@ -85,7 +86,7 @@ class Delivery:
             error_index = len(intake.records["errors"])
         runtime_id = get_runtime_id()
         phase = {
-            "verification_schema": 4,
+            "verification_schema": SCHEMA,
             "scenario": scenario,
             "verification_id": os.environ.get("DD_VERSION", "local"),
             "runtime_id": runtime_id,
@@ -346,7 +347,7 @@ class Delivery:
         try:
             if "delivery_termination_arm" not in self.state:
                 self.state["delivery_termination_arm"] = {
-                    "verification_schema": 4,
+                    "verification_schema": SCHEMA,
                     "scenario": "termination-armed",
                     "armed": True,
                     "marker": str(uuid.uuid4()),

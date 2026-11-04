@@ -28,6 +28,8 @@ from flask import request
 from lifecycle_checks import SCHEMA
 from lifecycle_checks import exporter_metrics
 from lifecycle_checks import subscriber_count
+from retirement_checks import evaluate_retirements
+from retirement_control import run_retirements
 
 from ddtrace import __version__
 from ddtrace import tracer
@@ -302,6 +304,12 @@ def verify():
     state["release"].set()
     state["thread"].join(5)
     checks["21429_drain_completed"] = not state["thread"].is_alive() and not state["errors"]
+    active_context = tracer.context_provider.active()
+    try:
+        retirements = run_retirements()
+    finally:
+        tracer.context_provider.activate(active_context)
+    checks.update(evaluate_retirements(retirements))
     state["stale"].finish()
     with tracer.start_span("verify.stale_child", child_of=state["context"]):
         pass
@@ -360,6 +368,7 @@ def verify():
     result = dict(
         verification_schema=SCHEMA,
         exporter_telemetry=native_metrics,
+        retirements=retirements,
         passed=all(checks.values()),
         checks=checks,
         old_runtime_id=state["old_id"],
