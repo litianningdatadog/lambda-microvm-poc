@@ -10,13 +10,8 @@ RUN dnf install -y \
     vim-enhanced nano wget unzip file htop \
     && dnf clean all
 
-# Datadog serverless-init binary (linux/arm64).
-# Download: https://github.com/DataDog/serverless-init (release asset: serverless-init-linux-arm64)
-# Statically linked — runs on AL2023 without extra runtime dependencies.
-# Old local serverless-init copy path, kept for easy revert:
-# COPY serverless-init-linux-arm64 /serverless-init
-# RUN chmod +x /serverless-init
-COPY --from=datadog/serverless-init:1.10.4 /datadog-init /serverless-init
+# Released ARM64 serverless-init dependency, fetched by the image builder.
+COPY --from=datadog/serverless-init:1.11.4 /datadog-init /serverless-init
 
 COPY requirements.txt .
 RUN pip3.11 install --no-cache-dir -r requirements.txt

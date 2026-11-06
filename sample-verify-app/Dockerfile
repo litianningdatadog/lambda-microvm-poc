@@ -9,11 +9,7 @@ RUN python3.12 -m pip install --no-cache-dir -r requirements.txt
 
 COPY app.py delivery.py .
 
-# Local serverless-init build (copied in by `./verify.sh deploy` from $SERVERLESS_INIT_BIN).
-COPY serverless-init-linux-arm64 /serverless-init
-RUN chmod +x /serverless-init
-# Released image, kept for easy revert:
-# COPY --from=datadog/serverless-init:1.10.4 /datadog-init /serverless-init
+COPY --from=datadog/serverless-init:1.11.4 /datadog-init /serverless-init
 
 EXPOSE 8080
 

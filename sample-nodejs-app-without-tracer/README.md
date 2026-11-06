@@ -48,5 +48,7 @@ make check
 make stop
 ```
 
-The Docker image keeps `serverless-init` as the entrypoint, but starts the app
-plainly with `node app.js` and does not install or preload `dd-trace`.
+Both Dockerfiles copy the init entrypoint directly from
+`datadog/serverless-init:1.11.4`; no local init binary is required.
+The image starts the app plainly with `node app.js` and does not install or
+preload `dd-trace`.

@@ -34,6 +34,10 @@ docker run --rm -p 8080:8080 sample-go-app
 
 The application listens on port **8080**.
 
+Both Dockerfiles copy the init entrypoint directly from
+`datadog/serverless-init:1.11.4`; no local init binary is required.
+`make build-local` still vendors the local tracer specified by `go.mod`.
+
 ## Testing
 
 ```bash

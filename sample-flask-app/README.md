@@ -28,9 +28,10 @@ The Flask app listens on port `8080`.
 ## Docker
 
 `make build` follows the same installation flow as `sample-python-app`: it
-copies `serverless-init-linux-arm64`, copies the configured local `ddtrace`
-wheel, installs Flask into Python 3.12, installs `ddtrace` into
-`/dd_tracer/python`, and runs the app through `serverless-init`.
+copies the configured local `ddtrace` wheel, installs Flask into Python 3.12,
+installs `ddtrace` into `/dd_tracer/python`, and runs the app through
+`serverless-init`. Both Dockerfiles copy `/datadog-init` directly from
+`datadog/serverless-init:1.11.4`; no local init binary is required.
 
 ```bash
 make build

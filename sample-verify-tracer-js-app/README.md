@@ -1,8 +1,9 @@
 # dd-trace-js MicroVM verification
 
 An executable verifier for **dd-trace 6.15.0**, using the same Express/Pino stack
-as `../sample-nodejs-app` and a **locally built serverless-init binary** like
-`../sample-verify-tracer-app`. No serverless-init Docker repository dependency.
+as `../sample-nodejs-app`. The Dockerfile copies `/datadog-init` from its pinned
+`datadog/serverless-init` image to `/serverless-init`, as in
+`../sample-verify-tracer-app`. No host init binary is required.
 
 The scenarios target [dd-trace-js PR #9709](https://github.com/DataDog/dd-trace-js/pull/9709):
 a Firecracker snapshot includes the tracer's cached random IDs and process
@@ -100,7 +101,7 @@ tracer error messages during the injected outage are part of the test.
 MicroVM `/terminate` does **not** guarantee a separate SIGTERM, and JS 6.15.0 does
 not automatically flush the tracer merely because that HTTP hook arrives. The
 app therefore waits for the **normal export timer**, without calling its explicit
-flush helper, until the Agent acknowledges the final span. The local
+flush helper, until the Agent acknowledges the final span. The
 serverless-init lifecycle implementation forwards the hook and then sequentially
 flushes its Agent pipelines before responding to AWS. This tests final delivery,
 not an invented tracer shutdown callback.
@@ -145,7 +146,7 @@ OpenSSL entropy. Only the two-clone AWS scenario checks that property.
 ### ARM64 AL2023 container
 
 ```sh
-make build                       # copies local serverless-init, installs pinned lockfile
+make build                       # resolves the pinned init image, installs pinned lockfile
 make start PORT=18081             # capture-only; bypasses serverless-init
 make check PORT=18081 OUTPUT=results/docker.json
 make stop
@@ -178,14 +179,15 @@ or backend ingestion.
 ./run-all.sh
 ```
 
-Requires `aws`, `aws-vault`, `dd-auth`, `make`, `python3`, and `tee`. Authenticate
+Requires `aws`, `aws-vault`, `dd-auth`, `python3`, and `tee`. Authenticate
 AWS and the matching dd-auth organization first. No deployment is performed by
 `npm run smoke` or the container workflow above.
 
 The AWS runner:
 
-1. Copies the local binary into the explicit build manifest and records SHA-256
-   hashes. Packages source, package/lockfile, Dockerfile, and binary only.
+1. Creates a fresh source-only ZIP from the explicit build manifest and records
+   SHA-256 hashes of source, package/lockfile, and Dockerfile. The archived
+   Dockerfile is the canonical init image dependency.
 2. Uploads to S3 and creates/updates an ARM64 MicroVM image. All six lifecycle
    hooks target serverless-init on port 9000, forwarding to the app on 8080.
 3. Launches candidates sequentially, stopping at the first pair sharing a
@@ -211,7 +213,6 @@ packaged. Do not commit results or `.dd-env`.
 
 | Environment variable | Default / purpose |
 | --- | --- |
-| `SERVERLESS_INIT_BIN` | `/Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64` |
 | `AWS_VAULT_PROFILE` | `sso-serverless-sandbox-account-admin` |
 | `REGION` | `us-east-2` |
 | `BUILD_ROLE_ARN` | `arn:aws:iam::425362996713:role/microvm-build-role` |

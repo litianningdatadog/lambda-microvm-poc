@@ -40,10 +40,11 @@ make test
 ## Docker
 
 `make build` follows the same installation flow as `sample-fastapi-asgi-app`: it
-uses the repo-local `serverless-init-linux-arm64` and `ddtrace` wheel in this
-directory, installs Django/Uvicorn into Python 3.12, installs `ddtrace` into
-`/dd_tracer/python`, and runs the app through `serverless-init` and
-`ddtrace-run`. The `ddtrace-run` launcher is required so Django's ASGI handler
+copies the configured local `ddtrace` wheel into this directory, installs
+Django/Uvicorn into Python 3.12, installs `ddtrace` into `/dd_tracer/python`,
+and runs the app through `serverless-init` and `ddtrace-run`. Both Dockerfiles
+copy `/datadog-init` directly from `datadog/serverless-init:1.11.4`; no local
+init binary is required. The `ddtrace-run` launcher is required so Django's ASGI handler
 is instrumented and the MicroVM lifecycle hook can refresh the runtime
 identity.
 

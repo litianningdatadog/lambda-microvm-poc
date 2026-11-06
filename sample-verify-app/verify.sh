@@ -25,8 +25,6 @@
 # Config via env (defaults match deploy-microvm.sh):
 #   DD_API_KEY (required for deploy), DD_SITE, REGION, BUILD_ROLE_ARN,
 #   EXECUTION_ROLE_ARN, BASE_IMAGE_ARN, S3_BUCKET,
-#   SERVERLESS_INIT_BIN (local arm64 serverless-init binary copied into the image;
-#                        default: datadog-agent/serverless-init-linux-arm64)
 #   SPANS_PER_SEC (deploy: extra mvmtest.burst spans per second; default 0 = off)
 #   STATS_COMPUTATION (deploy: true = tracer-computed APM stats; default false)
 #   STATS_INTERVAL (deploy: tracer stats bucket/flush seconds; default 10)
@@ -43,7 +41,6 @@ BUILD_ROLE_ARN="${BUILD_ROLE_ARN:-arn:aws:iam::425362996713:role/microvm-build-r
 EXECUTION_ROLE_ARN="${EXECUTION_ROLE_ARN:-$BUILD_ROLE_ARN}"
 BASE_IMAGE_ARN="${BASE_IMAGE_ARN:-arn:aws:lambda:${REGION}:aws:microvm-image:al2023-1}"
 S3_BUCKET="${S3_BUCKET:-$APP_NAME}"
-SERVERLESS_INIT_BIN="${SERVERLESS_INIT_BIN:-/Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64}"
 EVENTS_LOG="$SCRIPT_DIR/events.log"
 AWS_ARGS=(--region "$REGION")
 
@@ -133,20 +130,15 @@ cmd_deploy() {
   local variant="${1:?deploy <long|default|fwd|delivery>}"
   [[ "$variant" == long || "$variant" == default || "$variant" == fwd || "$variant" == delivery ]] || { log "ERROR: variant must be long, default, fwd or delivery"; exit 1; }
   : "${DD_API_KEY:?DD_API_KEY is required for deploy}"
-  [[ -f "$SERVERLESS_INIT_BIN" ]] || { log "ERROR: serverless-init binary not found: $SERVERLESS_INIT_BIN"; exit 1; }
 
-  local name ts zip s3_uri existing image_json image_arn image_version state bin_sha
+  local name ts zip s3_uri existing image_json image_arn image_version state
   name="$(image_name "$variant")"
   ts="$(date +%Y%m%d_%H%M%S)"
   zip="$(dirname "$SCRIPT_DIR")/$name.$ts.zip"
   s3_uri="s3://$S3_BUCKET/$variant/$ts.zip"
 
-  cp "$SERVERLESS_INIT_BIN" "$SCRIPT_DIR/serverless-init-linux-arm64"
-  bin_sha="$(shasum -a 256 "$SCRIPT_DIR/serverless-init-linux-arm64" | cut -c1-12)"
-  log "      serverless-init: $SERVERLESS_INIT_BIN (sha256 $bin_sha)"
-
   log "[1/4] Zipping → $zip"
-  ( cd "$SCRIPT_DIR" && zip -q "$zip" Dockerfile app.py delivery.py requirements.txt serverless-init-linux-arm64 )
+  ( cd "$SCRIPT_DIR" && rm -f "$zip" && zip -q "$zip" Dockerfile app.py delivery.py requirements.txt )
 
   log "[2/4] Uploading → $s3_uri"
   awsv aws s3api head-bucket --bucket "$S3_BUCKET" "${AWS_ARGS[@]}" 2>/dev/null \
@@ -186,7 +178,7 @@ cmd_deploy() {
     sleep 10
   done
   printf 'IMAGE_ARN=%q\nIMAGE_VERSION=%q\n' "$image_arn" "$image_version" > "$SCRIPT_DIR/.image-$variant"
-  note "deploy $variant $image_arn:$image_version serverless-init=$SERVERLESS_INIT_BIN sha256=$bin_sha spans_per_sec=${SPANS_PER_SEC:-0} stats_computation=${STATS_COMPUTATION:-false} stats_interval=${STATS_INTERVAL:-10} distribution_control=true"
+  note "deploy $variant $image_arn:$image_version archive=$s3_uri spans_per_sec=${SPANS_PER_SEC:-0} stats_computation=${STATS_COMPUTATION:-false} stats_interval=${STATS_INTERVAL:-10} distribution_control=true"
 }
 
 # --- run helpers ------------------------------------------------------------

@@ -56,7 +56,7 @@ Boto3CliV1Artifacts/awscli-bundle.zip
 /sample-go-app/vendor/
 /sample-nodejs-app/dd-trace-local.tgz
 
-# Local MicroVM build-context artifacts copied by sample Makefiles.
+# Historical local init binaries and local tracer build-context artifacts.
 /sample-*/serverless-init-linux-arm64
 /sample-*/ddtrace-*.whl
 sample-verify-app/results/

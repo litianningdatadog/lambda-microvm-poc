@@ -481,7 +481,7 @@ class CloudTests(unittest.TestCase):
     def test_shell_exit_cleanup_runs_for_candidates_without_selected_aliases(self):
         tools = Path(self.directory.name) / "bin"
         tools.mkdir()
-        for name in ("aws", "aws-vault", "dd-auth", "make", "npm"):
+        for name in ("aws", "aws-vault", "dd-auth"):
             (tools / name).symlink_to("/usr/bin/true")
         runner = tools / "python3"
         runner.write_text(f"#!{sys.executable}\n" + '''import json

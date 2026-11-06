@@ -39,10 +39,12 @@ make test
 
 ## Docker
 
-`make build` follows the same installation flow as `sample-flask-app`: it uses
-the repo-local `serverless-init-linux-arm64` and `ddtrace` wheel in this
-directory, installs Django/Gunicorn into Python 3.12, installs `ddtrace` into
-`/dd_tracer/python`, and runs the app through `serverless-init`.
+`make build` follows the same installation flow as `sample-flask-app`: it
+copies the configured local `ddtrace` wheel into this directory, installs
+Django/Gunicorn into Python 3.12, installs `ddtrace` into `/dd_tracer/python`,
+and runs the app through `serverless-init`. Both Dockerfiles copy
+`/datadog-init` directly from `datadog/serverless-init:1.11.4`; no local init
+binary is required.
 
 ```bash
 make build

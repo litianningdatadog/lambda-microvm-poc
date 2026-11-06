@@ -31,6 +31,8 @@ The Flask app listens on port `8080`.
 The Docker image installs Flask into Python 3.12 and runs the app through
 `serverless-init`, but without installing the local `ddtrace` wheel or wrapping
 the process with `ddtrace-run`.
+Both Dockerfiles copy `/datadog-init` directly from
+`datadog/serverless-init:1.11.4`; no local init binary is required.
 
 ```bash
 make build

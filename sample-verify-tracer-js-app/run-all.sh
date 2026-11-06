@@ -19,9 +19,8 @@ APM, and matching feature/final-termination logs. No match is inconclusive/failu
 No local hook simulation runs; missing new-scenario evidence always fails.
 
 Required: DD_API_KEY (the same Datadog org queried by dd-auth).
-Tools: aws, aws-vault, dd-auth, make, python3, npm, tee.
+Tools: aws, aws-vault, dd-auth, python3, tee.
 Overrides:
-  SERVERLESS_INIT_BIN  Local ARM64 binary (default /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64)
   RESULTS_DIR          New evidence directory (default results/<UTC timestamp>-<pid>)
   REGION               us-east-2
   AWS_VAULT_PROFILE    sso-serverless-sandbox-account-admin
@@ -51,10 +50,9 @@ cd "$SCRIPT_DIR"
 export REGION="${REGION:-us-east-2}"
 export AWS_VAULT_PROFILE="${AWS_VAULT_PROFILE:-sso-serverless-sandbox-account-admin}"
 export DD_SITE="${DD_SITE:-datadoghq.com}"
-export SERVERLESS_INIT_BIN="${SERVERLESS_INIT_BIN:-/Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64}"
 CHECK_DELAY="${CHECK_DELAY:-180}"
 [[ "$CHECK_DELAY" =~ ^[0-9]+$ ]] || { printf 'CHECK_DELAY must be a nonnegative integer\n' >&2; exit 1; }
-for tool in aws aws-vault dd-auth make python3 npm tee; do
+for tool in aws aws-vault dd-auth python3 tee; do
     command -v "$tool" >/dev/null || { printf 'Missing command: %s\n' "$tool" >&2; exit 1; }
 done
 R="${RESULTS_DIR:-results/$(date -u +%Y%m%dT%H%M%SZ)-$$}"

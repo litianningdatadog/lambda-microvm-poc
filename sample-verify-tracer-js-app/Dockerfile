@@ -6,8 +6,7 @@ RUN dnf install -y nodejs22 nodejs22-npm && dnf clean all
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 COPY app.js intake.js features.js feature-checks.js delivery.js ./
-COPY serverless-init-linux-arm64 /serverless-init
-RUN chmod +x /serverless-init
+COPY --from=datadog/serverless-init:1.11.4 /datadog-init /serverless-init
 ENV DD_SERVICE=sample-verify-tracer-js-app DD_SOURCE=nodejs \
     DD_LOGS_ENABLED=true DD_LOGS_INJECTION=true \
     DD_TRACE_AGENT_URL=http://127.0.0.1:18126 DD_DOGSTATSD_PORT=18125 \

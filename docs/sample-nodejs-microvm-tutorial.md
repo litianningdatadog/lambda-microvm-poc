@@ -22,10 +22,10 @@ Use [`dd-trace-js` 6.15.0](https://github.com/DataDog/dd-trace-js/releases) or n
 ENV NODE_OPTIONS="--require dd-trace/init"
 ```
 
-Use [`serverless-init` 1.10.4](https://github.com/DataDog/datadog-agent/releases/tag/serverless-init-1.10.4) or newer. The sample copies the ARM64 init binary from the published image and runs it as PID 1:
+The sample pins [`serverless-init` 1.11.4](https://hub.docker.com/r/datadog/serverless-init/tags?name=1.11.4), copies its ARM64 init binary directly from the published image, and runs it as PID 1. No local init binary is required:
 
 ```dockerfile
-COPY --from=datadog/serverless-init:1.10.4 /datadog-init /serverless-init
+COPY --from=datadog/serverless-init:1.11.4 /datadog-init /serverless-init
 ENTRYPOINT ["/serverless-init"]
 ```
 

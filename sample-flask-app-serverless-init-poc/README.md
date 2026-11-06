@@ -43,9 +43,8 @@ bound to anything — reserved for a future split between hook-server and user-a
 ## Prerequisites
 
 - Docker with ARM64 (`linux/arm64`) support — Apple Silicon or `buildx`.
-- `serverless-init-linux-arm64` binary checked in at the repo root of this
-  directory. Re-download from
-  https://github.com/DataDog/serverless-init if missing.
+- The image build fetches `datadog/serverless-init:1.11.4` from Docker Hub.
+  No local init binary or datadog-agent checkout is required.
 
 ## Build & run (Makefile)
 
@@ -149,4 +148,3 @@ make readlog | grep -E ' - (INFO|WARNING|ERROR) - '
 | `Makefile` | Build / run / log targets (see above) |
 | `app.py` | Flask app: 5 lifecycle hooks + `/health` + `/execute` |
 | `requirements.txt` | Python deps (Flask) |
-| `serverless-init-linux-arm64` | Statically-linked ARM64 init binary (not in git — see Prerequisites) |

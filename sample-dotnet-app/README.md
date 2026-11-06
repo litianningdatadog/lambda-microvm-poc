@@ -35,6 +35,10 @@ docker run --rm -p 8080:8080 sample-dotnet-app
 
 The application listens on port **8080**.
 
+Both Dockerfiles copy the init entrypoint directly from
+`datadog/serverless-init:1.11.4`; no local init binary is required.
+`Dockerfile.local` still requires the local tracer's `monitoring-home/` directory.
+
 ## Testing
 
 ```bash

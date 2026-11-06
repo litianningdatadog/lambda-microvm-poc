@@ -143,7 +143,8 @@ log "Forward:    DD_AWS_MICROVM_ENABLE_{READY,VALIDATE,RUN,RESUME,SUSPEND,TERMIN
 log "[1/6] Creating zip"
 rm -f "$ZIP_PATH"
 
-( cd "$APP_DIR" && zip -qr "$ZIP_PATH" . -x '*.DS_Store' 'claude-notifications.jsonl' )
+# Init comes from the Dockerfile's released image, not historical local binaries.
+( cd "$APP_DIR" && zip -qr "$ZIP_PATH" . -x '*.DS_Store' 'claude-notifications.jsonl' 'serverless-init-linux-arm64' )
 log "      zip size: $(du -h "$ZIP_PATH" | awk '{print $1}')"
 
 # --- 2. Upload to S3 -------------------------------------------------------

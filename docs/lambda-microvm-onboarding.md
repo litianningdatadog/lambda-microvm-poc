@@ -53,12 +53,12 @@ For details about supported modules and tracer configuration, see [Tracing Node.
 
 ## 2. Wrap the application with `serverless-init`
 
-`serverless-init` version `1.10.4` or newer must be the container entrypoint. It starts the command supplied in `CMD`, forwards lifecycle-hook requests, and reads application logs from stdout and stderr.
+The samples pin `serverless-init` to `1.11.4` as the container entrypoint. It starts the command supplied in `CMD`, forwards lifecycle-hook requests, and reads application logs from stdout and stderr.
 
-Add the ARM64-compatible init binary to the Dockerfile. The sample pins the minimum supported version; pin a compatible version in production rather than using `latest`.
+Declare the ARM64-compatible init binary as a Docker image dependency. The image builder fetches it directly; no local init binary is required. Pin a compatible version in production rather than using `latest`.
 
 ```dockerfile
-COPY --from=datadog/serverless-init:1.10.4 /datadog-init /serverless-init
+COPY --from=datadog/serverless-init:1.11.4 /datadog-init /serverless-init
 
 ENTRYPOINT ["/serverless-init"]
 CMD ["node", "app.js"]
@@ -90,7 +90,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 COPY app.js .
 
-COPY --from=datadog/serverless-init:1.10.4 /datadog-init /serverless-init
+COPY --from=datadog/serverless-init:1.11.4 /datadog-init /serverless-init
 
 EXPOSE 8080
 ENV NODE_OPTIONS="--require dd-trace/init"

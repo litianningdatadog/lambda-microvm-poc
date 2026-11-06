@@ -34,6 +34,11 @@ docker run --rm -p 8080:8080 sample-java-app
 
 The application listens on port **8080**.
 
+Both Dockerfiles copy the init entrypoint directly from
+`datadog/serverless-init:1.11.4`; no local init binary is required.
+Both still require `dd-java-agent-1.64.0-SNAPSHOT.jar` in the build context;
+`make build-local` builds and copies it from the configured tracer repository.
+
 ## Testing
 
 ```bash

@@ -30,6 +30,10 @@ docker run --rm -p 8080:8080 sample-nodejs-app
 
 The application listens on port **8080**.
 
+Both Dockerfiles copy the init entrypoint directly from
+`datadog/serverless-init:1.11.4`; no local init binary is required.
+Tracer installation continues to use the npm dependencies in `package-lock.json`.
+
 ## Deployment
 
 ### 1. Streamlined MicroVM deployment

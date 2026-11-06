@@ -11,7 +11,7 @@
 # default dddev.datadoghq.com), dd-auth, aws-vault, jq, uv. Takes about 100 minutes
 # with the default three run4 attempts.
 # A failing step doesn't stop the suite; its output is still saved.
-# Config via env: SERVERLESS_INIT_BIN, CHECK_DELAY (seconds before each check,
+# Config via env: CHECK_DELAY (seconds before each check,
 # default 180, so Datadog has finished ingesting). RUN4_ATTEMPTS defaults to 3
 # so the short resume → suspend window is exercised repeatedly; set it to 1 to
 # run the original single attempt. run5 + run6 add about 10 minutes.
@@ -26,8 +26,6 @@ cd "$SCRIPT_DIR"
 CHECK_DELAY="${CHECK_DELAY:-180}"
 START_AT="${START_AT:-0}"
 RUN4_ATTEMPTS="${RUN4_ATTEMPTS:-3}"
-BIN="${SERVERLESS_INIT_BIN:-/Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64}"
-[[ -f "$BIN" ]] || { print -u2 "ERROR: serverless-init binary not found: $BIN"; exit 1; }
 [[ "$RUN4_ATTEMPTS" == <-> && "$RUN4_ATTEMPTS" -ge 1 ]] || {
   print -u2 "ERROR: RUN4_ATTEMPTS must be a positive integer (got $RUN4_ATTEMPTS)"
   exit 1
@@ -36,7 +34,6 @@ BIN="${SERVERLESS_INIT_BIN:-/Users/tianning.li/DataDog/datadog-agent/serverless-
 R="${RESULTS_DIR:-results/$(date -u +%Y%m%dT%H%M%SZ)}"
 mkdir -p "$R"
 print "results -> $SCRIPT_DIR/$R (from step $START_AT)"
-print "binary   -> $BIN (sha256 $(shasum -a 256 "$BIN" | cut -c1-12)) from step $START_AT" | tee -a "$R/binary.txt"
 
 # skipped <file>: true if the step's number (the part before the first -) is below START_AT.
 skipped() { (( ${1%%-*} < START_AT )); }

@@ -20,7 +20,7 @@ BUILD_ROLE = os.environ.get("BUILD_ROLE_ARN", "arn:aws:iam::425362996713:role/mi
 CANDIDATE_LIMIT = 6
 FILES = (
     "Dockerfile", "app.js", "intake.js", "delivery.js", "features.js", "feature-checks.js",
-    "package.json", "package-lock.json", "serverless-init-linux-arm64",
+    "package.json", "package-lock.json",
 )
 
 
@@ -59,7 +59,6 @@ def wait(operation, args, wanted, timeout):
 
 def deploy(results):
     key = os.environ["DD_API_KEY"]
-    subprocess.run(["make", "prepare"], cwd=APP, check=True)
     manifest = json.loads((APP / "package.json").read_text())
     lock = json.loads((APP / "package-lock.json").read_text())
     if (manifest.get("dependencies", {}).get("dd-trace") != "6.15.0"

@@ -3,14 +3,12 @@
 Verifies how serverless-init behaves across MicroVM suspend / resume / terminate.
 Only a ❌ result below is a reason to change serverless-init.
 
-serverless-init comes from a **local arm64 build**:
-- `./verify.sh deploy` copies `$SERVERLESS_INIT_BIN` into this directory as
-  `serverless-init-linux-arm64`, and the `Dockerfile` does `COPY serverless-init-linux-arm64 /serverless-init`.
-- The default is `/Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64`, built
-  with `cmd/serverless-init/build-linux-arm64.sh`.
-- `events.log` records the binary path and sha256 for every deploy.
-- To use the released image instead (as `../sample-flask-app` does), swap the commented
-  `COPY --from=datadog/serverless-init:1.10.4 ...` line back in.
+The `Dockerfile` copies `/datadog-init` from its pinned
+`datadog/serverless-init` image to `/serverless-init`. Both local Docker builds
+and AWS image builds resolve this dependency directly; no host init binary is
+required. `./verify.sh deploy` creates a fresh source-only ZIP containing the
+Dockerfile and records its S3 URI in `events.log`, so the archived Dockerfile
+is the canonical init dependency for that deployment.
 
 The 2026-10-27 00:14–01:55 UTC runs used **1.10.4**. Between tag `serverless-init-1.10.4` and
 datadog-agent `main`, the suspend/resume/terminate and flush logic is unchanged. Two differences
@@ -64,7 +62,7 @@ Run with the same sandbox account and Datadog org used by the existing suite:
 
 ```sh
 cd sample-verify-app
-# Uses the local serverless-init binary; the API key is stored in the image env.
+# Uses the init image pinned in Dockerfile; the API key is stored in the image env.
 dd-auth --domain dddev.datadoghq.com --force-app-key -- ./verify.sh deploy delivery
 ./verify.sh run7 --output results/my-delivery-run/delivery-run.json
 ```
@@ -127,7 +125,6 @@ Defaults (region, roles, base image) match `../deploy-microvm.sh`.
 ```bash
 cd sample-verify-app
 export DD_API_KEY=<test key>            # stored in the image env; use a key you can revoke
-# optional: export SERVERLESS_INIT_BIN=/path/to/serverless-init-linux-arm64
 
 ./verify.sh deploy long                  # ~ a few minutes each
 ./verify.sh deploy default
@@ -373,9 +370,9 @@ Question (#58958 review, `discussion_r4414873382`): `flushAll(ctx, bool)` was sp
 - run5: forwarded `/suspend` that is resumed, then forwarded `/terminate` while RUNNING (#58958 path).
 - run6: forwarded `/suspend` as the last hook, VM terminated while SUSPENDED (#58960 path).
 
-Run with a binary built from the refactored branch:
+Re-run using the init image dependency pinned in the Dockerfile:
 ```bash
-SERVERLESS_INIT_BIN=... ./verify.sh deploy fwd
+./verify.sh deploy fwd
 ./verify.sh run5 && ./verify.sh check run5
 ./verify.sh run6 && ./verify.sh check run6
 ```

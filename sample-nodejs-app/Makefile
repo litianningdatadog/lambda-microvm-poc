@@ -10,16 +10,12 @@ HOOKS_HOST       := http://localhost:$(HOOKS_PORT)
 .PHONY: build build-local start stop check
 
 build:
-	# Old local serverless-init copy path, kept for easy revert:
-	# cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	# cd $(DD_TRACE_JS_REPO) && npm pack
 	# cp $(DD_TRACE_JS_REPO)/dd-trace-*.tgz dd-trace-local.tgz
 	# docker build --build-arg DD_TRACE_TGZ=dd-trace-local.tgz -t $(IMAGE) .
 	docker build -t $(IMAGE) .
 
 build-local:
-	# Old local serverless-init copy path, kept for easy revert:
-	# cp /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64 .
 	# cd $(DD_TRACE_JS_REPO) && npm pack
 	# cp $(DD_TRACE_JS_REPO)/dd-trace-*.tgz dd-trace-local.tgz
 	# docker build --build-arg DD_TRACE_TGZ=dd-trace-local.tgz -t $(IMAGE) -f Dockerfile.local .

@@ -13,10 +13,7 @@ RUN python3.12 -m pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 
-# Old local serverless-init copy path, kept for easy revert:
-# COPY serverless-init-linux-arm64 /serverless-init
-# RUN chmod +x /serverless-init
-COPY --from=datadog/serverless-init:1.10.4 /datadog-init /serverless-init
+COPY --from=datadog/serverless-init:1.11.4 /datadog-init /serverless-init
 
 EXPOSE 8080
 

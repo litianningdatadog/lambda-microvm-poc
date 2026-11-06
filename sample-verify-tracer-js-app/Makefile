@@ -1,18 +1,14 @@
 IMAGE ?= sample-verify-tracer-js-app
 PORT ?= 8080
-SERVERLESS_INIT_BIN ?= /Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64
 OUTPUT ?= results/local.json
 
-.PHONY: prepare build package start stop check smoke test
-prepare:
-	cp "$(SERVERLESS_INIT_BIN)" serverless-init-linux-arm64
-	chmod +x serverless-init-linux-arm64
-
-build: prepare
+.PHONY: build package start stop check smoke test
+build:
 	docker build --platform linux/arm64 -t "$(IMAGE)" .
 
-package: prepare
-	zip ../sample-verify-tracer-js-app.zip Dockerfile app.js intake.js features.js feature-checks.js delivery.js package.json package-lock.json serverless-init-linux-arm64
+package:
+	rm -f ../sample-verify-tracer-js-app.zip
+	zip ../sample-verify-tracer-js-app.zip Dockerfile app.js intake.js features.js feature-checks.js delivery.js package.json package-lock.json
 
 # Capture-only mode; intentionally bypass the Linux serverless-init binary.
 start:

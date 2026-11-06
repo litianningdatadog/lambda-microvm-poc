@@ -13,10 +13,7 @@ RUN GEM_HOME=/dd_tracer/ruby gem install datadog --no-document
 
 COPY app.rb Gemfile ./
 
-# Old local serverless-init copy path, kept for easy revert:
-# COPY serverless-init-linux-arm64 /serverless-init
-# RUN chmod +x /serverless-init
-COPY --from=datadog/serverless-init:1.10.4 /datadog-init /serverless-init
+COPY --from=datadog/serverless-init:1.11.4 /datadog-init /serverless-init
 
 EXPOSE 8080
 
