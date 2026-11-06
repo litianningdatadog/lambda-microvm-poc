@@ -22,6 +22,7 @@ from intake import FORWARD
 from intake import Intake
 from intake import records
 from intake import records_lock
+from intake import telemetry_requests
 from flask import Flask
 from flask import jsonify
 from flask import request
@@ -47,6 +48,9 @@ scenario_lock = threading.Lock()
 RSS_METRIC = "runtime.python.mem.rss"
 RSS_ALIAS = os.environ.get("VERIFY_RUNTIME_RSS_ALIAS", "")
 HOOK_BASE = "/aws/lambda-microvms/runtime/v1"
+# "mvp" tests a wheel without #20956/#20957, so their probes would read fields it lacks.
+SCOPE = os.environ.get("VERIFY_SCOPE", "full")
+MVP = SCOPE == "mvp"
 delivery = Delivery(state)
 
 
@@ -92,6 +96,147 @@ def rss_packets_for_runtime(metrics, runtime_id):
         if f"runtime-id:{runtime_id}" in tags:
             packets.append(line)
     return packets
+
+
+def record_run_step(step, started):
+    # Diagnostic only, recorded during /run; offsets are relative to the /run request start.
+    if not state.get("recording_run"):
+        return
+    now = time.monotonic()
+    state.setdefault("run_timings", []).append({
+        "step": step,
+        "start": round(started - state.get("run_start", started), 6),
+        "seconds": round(now - started, 6),
+        "thread": threading.current_thread().name,
+    })
+
+
+def time_calls(owner, names, prefix):
+    """Wrap methods with timers; skips names this wheel lacks. Not for subscribed callbacks."""
+    for name in names:
+        original = getattr(owner, name, None)
+        if original is None:
+            continue
+
+        def timed(*args, _original=original, _label=prefix + name, **kwargs):
+            if not state.get("recording_run"):
+                return _original(*args, **kwargs)
+            started = time.monotonic()
+            try:
+                return _original(*args, **kwargs)
+            finally:
+                record_run_step(_label, started)
+
+        setattr(owner, name, timed)
+
+
+def callback_name(callback):
+    owner = getattr(callback, "__self__", None)
+    name = getattr(callback, "__qualname__", None) or repr(callback)
+    return f"{type(owner).__name__}.{callback.__name__}" if owner is not None else name
+
+
+BENCH_BUFFER_BYTES = 32 << 20
+# A/B switch: the pre-snapshot benchmark itself may change post-restore speed.
+PLATFORM_BENCH = os.environ.get("VERIFY_PLATFORM_BENCH", "true") != "false"
+
+
+def platform_bench(buffer):
+    """Fixed CPU and page-touch work, to compare post-restore speed with the pre-snapshot baseline."""
+    started = time.perf_counter()
+    total = 0
+    for value in range(1_000_000):
+        total += value
+    cpu = time.perf_counter() - started
+    started = time.perf_counter()
+    for offset in range(0, len(buffer), 4096):
+        buffer[offset] = (buffer[offset] + 1) & 255
+    pages = time.perf_counter() - started
+    return {"cpu_loop_seconds": round(cpu, 6), "page_touch_seconds": round(pages, 6), "pages": len(buffer) // 4096}
+
+
+def build_inputs():
+    def read(name):
+        try:
+            return Path("/app", name).read_text().splitlines()
+        except OSError:
+            return None
+
+    return {"os": read("build-os.txt"), "pip": read("build-pip.txt"), "rpm": read("build-rpm.txt")}
+
+
+def run_telemetry_requests():
+    # Telemetry the intake saw from 1s before /run to 2s after it, relative to the /run start.
+    start = state.get("run_start")
+    if start is None:
+        return []
+    end = start + (state.get("hook_elapsed") or 0) + 2
+    with records_lock:
+        rows = [dict(row) for row in telemetry_requests if start - 1 <= row["received_at"] <= end]
+    for row in rows:
+        row["start"] = round(row.pop("received_at") - start, 6)
+    return rows
+
+
+def time_identity_refresh():
+    """Time each refresh step without wrapping callbacks, so unsubscribe-by-identity keeps working."""
+    import ddtrace.internal._runtime_id as runtime_id
+
+    notify_refresh = getattr(runtime_id, "_notify_runtime_identity_refresh_callbacks", None)
+    notify_change = getattr(runtime_id, "_notify_runtime_id_callbacks", None)
+    refresh = getattr(runtime_id, "refresh_identity", None)
+    if not (notify_refresh and notify_change and refresh):
+        return
+
+    def timed_callback(prefix, callback):
+        started = time.monotonic()
+        try:
+            callback(runtime_id._RUNTIME_ID)
+        finally:
+            record_run_step(prefix + callback_name(callback), started)
+
+    # Same isolation and logging as the tracer's own loops.
+    def timed_notify_change(callbacks):
+        for callback in list(callbacks):
+            try:
+                timed_callback("id_change:", callback)
+            except Exception:
+                runtime_id.log.exception("Exception ignored in runtime ID callback %r", callback)
+
+    def timed_notify_refresh(*, raise_on_error=False):
+        for callback in list(runtime_id._ON_RUNTIME_IDENTITY_REFRESH):
+            if raise_on_error:
+                timed_callback("refresh:", callback)
+                continue
+            try:
+                timed_callback("refresh:", callback)
+            except Exception:
+                runtime_id.log.exception("Exception ignored in runtime ID callback %r", callback)
+
+    def timed_refresh(*args, **kwargs):
+        started = time.monotonic()
+        try:
+            return refresh(*args, **kwargs)
+        finally:
+            record_run_step("refresh_identity_total", started)
+
+    runtime_id._notify_runtime_identity_refresh_callbacks = timed_notify_refresh
+    runtime_id._notify_runtime_id_callbacks = timed_notify_change
+    runtime_id.refresh_identity = timed_refresh
+
+    # Inside the worker swap: which native or Python call owns the time after a snapshot restore.
+    from ddtrace._trace.processor import SpanAggregator
+    from ddtrace.internal.writer.writer import NativeWriter
+
+    time_calls(telemetry_writer, ("_discard_worker", "enable", "app_started", "_get_shared_worker"), "telemetry.")
+    tracker = getattr(telemetry_writer, "_dependency_tracker", None)
+    if tracker is not None:
+        time_calls(tracker, ("refresh",), "telemetry.dependencies.")
+    time_calls(NativeWriter, (
+        "_create_exporter", "_drop_exporter", "_shutdown_exporter", "drop_buffered_traces",
+        "recreate", "_recreate", "_set_telemetry_handle", "_unsubscribe_telemetry_worker",
+    ), "writer.")
+    time_calls(SpanAggregator, ("reset",), "aggregator.")
 
 
 def collector_baselines():
@@ -236,6 +381,11 @@ def prepare():
     if not state["entered"].wait(5):
         return jsonify(error="configure() did not enter the writer drain"), 500
     state["pre_run_writer"] = tracer._span_aggregator.writer
+    time_identity_refresh()
+    # Pages touched here are part of the snapshot; /run touches them again after restore.
+    if PLATFORM_BENCH:
+        state["bench_buffer"] = bytearray(BENCH_BUFFER_BYTES)
+        state["bench_pre_snapshot"] = platform_bench(state["bench_buffer"])
     state["run_start"] = time.monotonic()
     return jsonify(old_runtime_id=state["old_id"], drain_held=True)
 
@@ -244,6 +394,7 @@ def prepare():
 def run_hook():
     # The Flask request-start listener must refresh identity before this handler.
     state["lifecycle"]["run"] += 1
+    record_run_step("run_handler_entered", time.monotonic())
     return jsonify(runtime_id=get_runtime_id())
 
 
@@ -254,9 +405,16 @@ def timed_wsgi_app(environ, start_response):
     is_run = environ.get("REQUEST_METHOD") == "POST" and environ.get("PATH_INFO") == MICROVM_RUN_HOOK_PATH
     if is_run:
         state["run_start"] = time.monotonic()
-    response = flask_wsgi_app(environ, start_response)
-    if is_run:
-        state["hook_elapsed"] = time.monotonic() - state["run_start"]
+        state["recording_run"] = True
+    try:
+        response = flask_wsgi_app(environ, start_response)
+    finally:
+        if is_run:
+            state["hook_elapsed"] = time.monotonic() - state["run_start"]
+            state["recording_run"] = False
+            # After hook_elapsed is recorded, so the benchmark cannot affect run_seconds.
+            if "bench_buffer" in state and "bench_post_restore" not in state:
+                state["bench_post_restore"] = platform_bench(state["bench_buffer"])
     return response
 
 
@@ -285,18 +443,21 @@ def verify():
         "20955_old_writer_discarded": old._discarded_by_refresh and not old._accepting_writes,
         "21429_refresh_while_drain_held": state["thread"].is_alive() and not state["release"].is_set(),
         "21429_replacement_published": current is not old,
-        "20956_worker_replaced": telemetry_writer._worker is not state["old_worker"],
-        "20956_worker_identity": telemetry_writer._worker_runtime_id == new_id,
-        "20956_old_exporter_unsubscribed": not old._telemetry_worker_subscribed,
-        "20956_new_exporter_subscribed": current._telemetry_worker_subscribed,
-        "20956_retired_callback_removed": subscriber_count(telemetry_writer, old) == 0,
-        "20956_pre_run_callback_removed": subscriber_count(telemetry_writer, state["pre_run_writer"]) == 0,
-        "20956_current_callback_once": subscriber_count(telemetry_writer, current) == 1,
-        "20957_collector_identity": RuntimeWorker._instance._collectors_runtime_id == new_id,
-        "20957_wall_baseline_reset": baselines["wall"] >= state["run_start"],
-        "20957_cpu_baseline_reset": sum(baselines["cpu"].values()) > sum(state["before"]["cpu"].values()),
-        "20957_gc_baseline_reset": all(a >= b for a, b in zip(baselines["gc"], state["gc_before_run"])),
     }
+    if not MVP:
+        checks.update({
+            "20956_worker_replaced": telemetry_writer._worker is not state["old_worker"],
+            "20956_worker_identity": telemetry_writer._worker_runtime_id == new_id,
+            "20956_old_exporter_unsubscribed": not old._telemetry_worker_subscribed,
+            "20956_new_exporter_subscribed": current._telemetry_worker_subscribed,
+            "20956_retired_callback_removed": subscriber_count(telemetry_writer, old) == 0,
+            "20956_pre_run_callback_removed": subscriber_count(telemetry_writer, state["pre_run_writer"]) == 0,
+            "20956_current_callback_once": subscriber_count(telemetry_writer, current) == 1,
+            "20957_collector_identity": RuntimeWorker._instance._collectors_runtime_id == new_id,
+            "20957_wall_baseline_reset": baselines["wall"] >= state["run_start"],
+            "20957_cpu_baseline_reset": sum(baselines["cpu"].values()) > sum(state["before"]["cpu"].values()),
+            "20957_gc_baseline_reset": all(a >= b for a, b in zip(baselines["gc"], state["gc_before_run"])),
+        })
     span_start = time.monotonic()
     with tracer.start_span("verify.during_drain", child_of=None):
         pass
@@ -337,10 +498,12 @@ def verify():
             )
         if (
             any(s["name"] == "verify.fresh" for s in spans)
-            and rss_packets_for_runtime(metrics, new_id)
-            and telemetry_received
-            and all(value > 0 for value in native_metrics.values())
             and all(evaluate_features(spans, feature_evidence, new_id).values())
+            and (MVP or (
+                rss_packets_for_runtime(metrics, new_id)
+                and telemetry_received
+                and all(value > 0 for value in native_metrics.values())
+            ))
         ):
             break
         time.sleep(0.05)
@@ -356,17 +519,21 @@ def verify():
             "fresh_trace_identity": any(
                 s["name"] == "verify.fresh" and s.get("meta", {}).get("runtime-id") == new_id for s in spans
             ),
+            "intake_decode_succeeded": not records["errors"],
+        }
+    )
+    if not MVP:
+        checks.update({
             "20957_new_metrics_received": bool(rss_packets_for_runtime(metrics, new_id)),
             "20956_new_telemetry_received": telemetry_received,
             "20956_exporter_requests_received": native_metrics["trace_api.requests"] > 0,
             "20956_exporter_responses_received": native_metrics["trace_api.responses"] > 0,
-            "intake_decode_succeeded": not records["errors"],
-        }
-    )
+        })
     checks["run_under_one_second"] = state.get("hook_elapsed", float("inf")) < 1
     checks.update(evaluate_features(spans, feature_evidence, new_id))
     result = dict(
         verification_schema=SCHEMA,
+        verification_scope=SCOPE,
         exporter_telemetry=native_metrics,
         retirements=retirements,
         passed=all(checks.values()),
@@ -379,6 +546,14 @@ def verify():
         ddtrace=__version__,
         wheel_sha256=Path("/app/wheel.sha256").read_text().split()[0],
         run_seconds=state.get("hook_elapsed"),
+        run_timings=state.get("run_timings", []),
+        run_telemetry=run_telemetry_requests(),
+        platform_bench={
+            "enabled": PLATFORM_BENCH,
+            "pre_snapshot": state.get("bench_pre_snapshot"),
+            "post_restore": state.get("bench_post_restore"),
+        },
+        build_inputs=build_inputs(),
         verification_id=os.environ.get("DD_VERSION", "local"),
         runtime_rss_packets=rss_packets_for_runtime(metrics, new_id),
         runtime_rss_alias=RSS_ALIAS or None,

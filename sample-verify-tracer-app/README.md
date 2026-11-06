@@ -22,8 +22,12 @@ You do not need to export `DD_APP_KEY` yourself. The deployment key and the
 
 The script:
 
-1. Copies the wheel and local serverless-init binary into the build context,
-   packages them, uploads to S3, and creates or updates the ARM64 MicroVM image.
+1. Copies the wheel into the build context, packages the app, uploads to S3, and
+   creates or updates the ARM64 MicroVM image. The Dockerfile declares
+   `COPY --from=datadog/serverless-init:1.11.4 /datadog-init /serverless-init`;
+   the image builder fetches that dependency directly from Docker Hub. No local
+   serverless-init binary, datadog-agent checkout, or Docker daemon is needed
+   to prepare an AWS deployment.
 2. Waits for the build and runs a snapshot clone. The platform calls `/run` once;
    the script runs the original `/verify`, native automatic export, and intake
    failure/recovery checks. It never synthesizes `/run` on the running VM.
@@ -78,6 +82,27 @@ schema 2 requires its original five telemetry checks. Results below schema 4
 explicitly lack the four new delivery scenarios; re-evaluation cannot add coverage.
 Results below schema 5 explicitly skip the cleanup-error controls described below.
 
+### MVP scope: without #20956 and #20957
+
+`run-all-mvp.sh` runs the same AWS workflow against a wheel built without #20956
+and #20957, for example from #21429's branch tip:
+
+```sh
+MVP_WHEEL=/path/to/ddtrace-4.17.0rc1-cp312-cp312-linux_aarch64.whl \
+MVP_SOURCE_COMMIT=04f1660893858ffe6707fa3e8a223075fdc51d48 \
+./run-all-mvp.sh
+```
+
+It sets `VERIFY_SCOPE=mvp` and deploys to a separate image,
+`sample-verify-tracer-app-mvp` (override with `IMAGE_NAME`). The guest skips the
+`20956_*` and `20957_*` probes, since that wheel lacks the fields they read. The
+#20955/#21429 refresh, retirement, feature, delivery, suspend/resume and
+termination checks all still run. The evaluator then requires the guest to
+report the MVP scope and no deferred-PR checks, and skips the telemetry-scenario
+requirement. Results go to `results/mvp-*`, with the wheel hash and source
+commit in `mvp-artifacts.txt`. The local driver (`verify.py`) still assumes the
+full scope.
+
 ### Environment overrides
 
 | Variable | Default / purpose |
@@ -94,7 +119,6 @@ Results below schema 5 explicitly skip the cleanup-error controls described belo
 | `IMAGE_NAME` | `sample-verify-tracer-app`. |
 | `S3_BUCKET` | Same as `IMAGE_NAME`. Created if absent. |
 | `WHEEL` | `/Users/tianning.li/DataDog/dd-trace-py/dist/ddtrace-4.17.0rc1-cp312-cp312-linux_aarch64.whl`. |
-| `SERVERLESS_INIT_BIN` | `/Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64`. |
 | `CHECK_DELAY` | `180` seconds for Datadog ingestion. |
 | `VERIFY_RUNTIME_RSS_ALIAS` | Optional diagnostic metric name for a copy of the RSS packet. The original is still submitted; the standard-name backend assertion is opt-in for now. |
 | `BUILD_TIMEOUT` | `1800` seconds for the image build. |
@@ -130,7 +154,7 @@ The app never calls `refresh_identity()` directly.
 | PR | Guest evidence |
 | --- | --- |
 | [#20955](https://github.com/DataDog/dd-trace-py/pull/20955) | Old writer discarded; buffered, open, and retained-context spans absent from captured payloads; fresh trace uses the new runtime ID. |
-| [#21429](https://github.com/DataDog/dd-trace-py/pull/21429) | `/run` and span work finish in under one second while retirement is held; retirement finishes after release; cleanup errors allow configuration/shutdown to complete, with active-writer errors preserved. |
+| [#21429](https://github.com/DataDog/dd-trace-py/pull/21429) | `/run` and span work finish in under one second while retirement is held; retirement finishes after release; cleanup errors allow configuration/shutdown to complete, with active-writer errors preserved. Local `retirement-races` controls cover timed-out shutdown joins and signal shutdown during a manual flush. |
 | [#20956](https://github.com/DataDog/dd-trace-py/pull/20956) | Worker and identity replaced; both obsolete writer callbacks absent; current callback registered exactly once; telemetry marker and native exporter request/response metrics emitted under the new ID. |
 | [#20957](https://github.com/DataDog/dd-trace-py/pull/20957) | CPU, wall-clock, and GC baselines reseeded; collector identity updated; runtime metrics emitted with the new ID. |
 
@@ -279,8 +303,12 @@ Forwarding is disabled. These results prove local native-tracer behavior, not
 Firecracker freeze/thaw, real Agent final flushing, or Datadog ingestion.
 
 Individual local steps remain `make build`, `make start PORT=18080`,
-`make check PORT=18080`, and `make stop`. `make package` copies both artifacts
-and produces an archive for manual deployment.
+`make check PORT=18080`, and `make stop`. `make package` copies the wheel
+and creates a fresh source archive for manual deployment, without an init binary.
+Local Docker builds resolve the same pinned serverless-init image as AWS builds;
+the local workflow records the init checksum from the built image, not a host file.
+New `deployment.json` files no longer contain a host-binary `serverless_init_sha256`;
+the packaged Dockerfile records the released image dependency.
 
 ## Subscription and blocked-send controls
 
@@ -305,6 +333,25 @@ an in-process HTTP intake. Nothing is forwarded to Datadog.
   release, the next send must apply that handle and emit native `trace_api.*`
   request/response metrics under the new runtime ID. This is a local lifecycle
   control; the AWS scenario continues to rely exclusively on platform hooks.
+- `retirement-races` enables MicroVM detection and covers the two #21429 fixes
+  in [`04f1660893`](https://github.com/DataDog/dd-trace-py/commit/04f1660893858ffe6707fa3e8a223075fdc51d48).
+  Both need a runtime-ID rotation or a main-thread signal handler, so they can't
+  run in the guest.
+  - Timed-out join: the old writer's native send is held at the intake while a
+    second trace waits in its buffer. Configuration pauses before taking the
+    retirement lock, refresh pauses past its shutdown guard, and
+    `tracer.shutdown(timeout=0)` runs. The retirement must stay tracked, refresh
+    must discard the old writer, and the buffered trace must never reach the
+    intake. The in-flight send may finish.
+  - Signal during a manual flush: `tracer.flush()` holds the old writer's
+    exporter lock in a held native send while configuration drains that writer.
+    SIGTERM then calls `tracer.shutdown()`, once with a 2-second timeout and
+    once with none. The handler must run inside the lock and return in under one
+    second. Configuration must then finish and send the drained trace.
+
+  A 30-second watchdog turns a deadlock into a failed result. With the
+  `f7e1792cdd` processor, the targeted checks fail: the stale buffered trace is
+  sent, the bounded case waits about 2 seconds, and the default case deadlocks.
 - `retirement_control.py` runs once with MicroVM detection enabled and once
   without it. These controls cover the cleanup-error fixes in
   [`f7e1792cdd`](https://github.com/DataDog/dd-trace-py/commit/f7e1792cdd034e788c9e84765600d7056acd9cf0).
@@ -347,6 +394,22 @@ ID, or a bookkeeping flag alone cannot satisfy them.
 Wheel hashes identify the tested artifact; they do not prove its source revision.
 Rebuild the wheel after tracer edits and retain the source commit alongside the
 run's wheel hash. An older wheel with the same version string is insufficient.
+
+## Verification of the November 5 update (#21429 `04f1660893`)
+
+- The wheel was rebuilt from stack tip `b6f782cbc0`, which contains
+  `04f1660893`. All 1175 packaged `.py` files match that commit. SHA256
+  `7b818995b88028b5dcb18cb50b9c2ee64d1e717d44e184423cdb47dd6abaa5eb`.
+- ARM64 AL2023 `./run-local.sh`: **125/125** checks passed in
+  `results/20261105T174248Z-17084`, including all five native lifecycle
+  controls. `retirement-races` passed 18/18 with no intake errors.
+- Mounting the `f7e1792cdd` processor over the installed one makes
+  `retirement-races` fail. The timed-out join drops the retirement and sends the
+  stale buffered trace, the bounded signal case waits about 2 seconds, and the
+  default case deadlocks until the watchdog fires. This is saved as
+  `retirement-races-before-fix.json` and `.log` in the same run directory.
+- Host regressions: **73 passed**. Guest evidence and the AWS evaluator are
+  unchanged, so the schema stays at 5. No AWS run was made for this update.
 
 ## Verification of schema 5 changes
 

@@ -3,7 +3,7 @@
 # Like sample-verify-app/run-all.sh, keep numbered logs and a timestamped summary.
 # Local native scenarios only; this does not deploy to AWS.
 # Optional local smoke test. run-all.sh owns AWS deployment and Datadog evaluation.
-# Config: WHEEL, SERVERLESS_INIT_BIN, IMAGE, PORT, RESULTS_DIR.
+# Config: WHEEL, IMAGE, PORT, RESULTS_DIR.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,14 +11,11 @@ cd "$SCRIPT_DIR"
 export IMAGE="${IMAGE:-sample-verify-tracer-app}"
 export PORT="${PORT:-18080}"
 export WHEEL="${WHEEL:-/Users/tianning.li/DataDog/dd-trace-py/dist/ddtrace-4.17.0rc1-cp312-cp312-linux_aarch64.whl}"
-export SERVERLESS_INIT_BIN="${SERVERLESS_INIT_BIN:-/Users/tianning.li/DataDog/datadog-agent/serverless-init-linux-arm64}"
 
 for command in docker make python3 shasum tee; do
     command -v "$command" >/dev/null || { printf 'Missing command: %s\n' "$command" >&2; exit 1; }
 done
-for artifact in "$WHEEL" "$SERVERLESS_INIT_BIN"; do
-    [[ -f "$artifact" ]] || { printf 'Missing artifact: %s\n' "$artifact" >&2; exit 1; }
-done
+[[ -f "$WHEEL" ]] || { printf 'Missing artifact: %s\n' "$WHEEL" >&2; exit 1; }
 docker info >/dev/null 2>&1 || { printf 'Docker is not available\n' >&2; exit 1; }
 if docker container inspect "$IMAGE" >/dev/null 2>&1; then
     printf 'Container %s already exists; choose another IMAGE or stop it first.\n' "$IMAGE" >&2
@@ -33,7 +30,7 @@ R="$(cd "$R" && pwd)"
 printf 'Results -> %s\n' "$R"
 {
     printf 'Started: %s\nImage: %s\nPort: %s\n' "$(date -u +%FT%TZ)" "$IMAGE" "$PORT"
-    shasum -a 256 "$WHEEL" "$SERVERLESS_INIT_BIN"
+    shasum -a 256 "$WHEEL"
 } | tee "$R/artifacts.txt"
 
 started=0
@@ -68,6 +65,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 step 00-build make build || exit "$?"
+docker run --rm --entrypoint sha256sum "$IMAGE" /serverless-init | tee -a "$R/artifacts.txt"
 step 05-lifecycle-controls make check-lifecycle || exit "$?"
 step 10-start make start || exit "$?"
 started=1

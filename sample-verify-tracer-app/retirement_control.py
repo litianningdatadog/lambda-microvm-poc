@@ -7,13 +7,17 @@ import os
 import sys
 import threading
 import time
-from unittest.mock import patch
 
 from retirement_checks import evaluate_retirements
+
+# unittest.mock is imported inside the probes: under ddtrace-run, importing it patches
+# the unittest integration (about 80 CI Visibility modules), which slows /run's telemetry refresh.
 
 
 @contextmanager
 def capture_warnings():
+    from unittest.mock import patch
+
     from ddtrace.internal.logger import _RATE_LIMITS
 
     class Capture(logging.Handler):
@@ -65,6 +69,8 @@ def tracer_closed(tracer):
 
 def run_retirements():
     # Imports stay inside the entrypoint so host evaluator tests need no tracer wheel.
+    from unittest.mock import patch
+
     from ddtrace._trace.processor import TraceProcessor
     from ddtrace._trace.provider import DefaultContextProvider
     from ddtrace._trace.tracer import Tracer

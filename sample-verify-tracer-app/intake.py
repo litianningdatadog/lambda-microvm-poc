@@ -17,6 +17,15 @@ FORWARD = os.environ.get("VERIFY_FORWARD_TO_AGENT") == "true"
 records = {"traces": [], "telemetry": [], "dogstatsd": [], "dogstatsd_alias": [], "errors": [], "cancelled_responses": []}
 records_lock = threading.Lock()
 trace_requests = []
+# Diagnostic: arrival and upstream forwarding time per telemetry request (monotonic clock).
+telemetry_requests = []
+
+
+def _telemetry_kind(message):
+    kind = message.get("request_type", "")
+    if kind == "message-batch" and isinstance(message.get("payload"), list):
+        kind += "[" + ",".join(child.get("request_type", "") for child in message["payload"]) + "]"
+    return kind
 _sequence = 0
 _fault = None
 
@@ -74,6 +83,7 @@ class Intake(BaseHTTPRequestHandler):
 
     def do_PUT(self):
         self._response_started = False
+        self._telemetry_timing = None  # Keep-alive reuses the handler across requests.
         wire = None
         fault = None
         received_at = time.monotonic()
@@ -106,8 +116,16 @@ class Intake(BaseHTTPRequestHandler):
                     wire["spans"] = spans
             elif "telemetry" in self.path:
                 telemetry = json.loads(body)
+                self._telemetry_timing = {
+                    "received_at": received_at,
+                    "kind": _telemetry_kind(telemetry),
+                    "runtime_id": telemetry.get("runtime_id"),
+                    "upstream_seconds": None,
+                    "status": None,
+                }
                 with records_lock:
                     records["telemetry"].append(telemetry)
+                    telemetry_requests.append(self._telemetry_timing)
         except Exception as error:
             with records_lock:
                 records["errors"].append(f"Intake decode failed: {error}")
@@ -148,6 +166,7 @@ class Intake(BaseHTTPRequestHandler):
                 for key, value in self.headers.items()
                 if key.lower() not in {"host", "connection", "content-length", "transfer-encoding"}
             }
+            forward_started = time.monotonic()
             connection.request(self.command, self.path, body=body, headers=headers)
             if wire is not None:
                 with records_lock:
@@ -155,6 +174,10 @@ class Intake(BaseHTTPRequestHandler):
             response = connection.getresponse()
             # read() verifies Content-Length/chunked completion before any ACK is published.
             payload = response.read()
+            timing = getattr(self, "_telemetry_timing", None)
+            if timing is not None and "telemetry" in self.path:
+                with records_lock:
+                    timing.update(upstream_seconds=round(time.monotonic() - forward_started, 6), status=response.status)
             if not 200 <= response.status < 300:
                 with records_lock:
                     records["errors"].append(f"Agent forwarding returned HTTP {response.status}: {self.path}")

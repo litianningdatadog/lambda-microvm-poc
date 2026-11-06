@@ -75,6 +75,9 @@ def deploy(results):
     rss_alias = os.environ.get("VERIFY_RUNTIME_RSS_ALIAS", "")
     if rss_alias and (not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_.]+", rss_alias) or rss_alias == "runtime.python.mem.rss"):
         raise ValueError("VERIFY_RUNTIME_RSS_ALIAS must be a distinct DogStatsD metric name")
+    scope = os.environ.get("VERIFY_SCOPE", "full")
+    if scope not in ("full", "mvp"):
+        raise ValueError("VERIFY_SCOPE must be full or mvp")
     aws("lambda-microvms", "list-managed-microvm-images")
     # Run the fixed build target in this sample's Makefile.
     subprocess.run(["make", "prepare"], cwd=APP, check=True)  # nosec B603, B607
@@ -106,7 +109,6 @@ def deploy(results):
             "retirement_control.py",
             "requirements.txt",
             wheel,
-            "serverless-init-linux-arm64",
         ):
             package.write(APP / name, name)
     bucket = os.environ.get("S3_BUCKET", NAME)
@@ -157,6 +159,8 @@ def deploy(results):
         "DD_AWS_MICROVM_FORWARD_TIMEOUT_MS": "15000",
         "VERIFY_FORWARD_TO_AGENT": "true",
         "VERIFY_RUNTIME_RSS_ALIAS": rss_alias,
+        "VERIFY_SCOPE": scope,
+        "VERIFY_PLATFORM_BENCH": os.environ.get("VERIFY_PLATFORM_BENCH", "true"),
         "DD_TRACE_AGENT_URL": "http://127.0.0.1:18126",
         "DD_DOGSTATSD_URL": "udp://127.0.0.1:18125",
     }
@@ -191,11 +195,12 @@ def deploy(results):
         "region": REGION,
         "verification_id": results.name,
         "verification_schema": SCHEMA,
+        "verification_scope": scope,
+        "platform_bench": os.environ.get("VERIFY_PLATFORM_BENCH", "true"),
         "runtime_rss_alias": rss_alias or None,
         "start": time.time(),
         "logGroup": f"/aws/lambda-microvms/{NAME}",
         "wheel_sha256": hashlib.sha256((APP / wheel).read_bytes()).hexdigest(),
-        "serverless_init_sha256": hashlib.sha256((APP / "serverless-init-linux-arm64").read_bytes()).hexdigest(),
     }
     save(results / "deployment.json", metadata)
     wait(

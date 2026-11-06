@@ -134,7 +134,15 @@ def evaluate(results, output=None, check_runtime_metrics=False):
             "Historical schema predates automatic export, intake recovery, repeated suspend/resume, "
             "and final termination-batch verification; deploy again for schema 4 coverage."
         )
-    if schema >= 2:
+    scope = deployment.get("verification_scope", "full")
+    if scope == "mvp":
+        # A wrong wheel or guest scope must not pass as MVP evidence.
+        checks["guest_scope_matches_deployment"] = guest.get("verification_scope") == "mvp"
+        checks["guest_excludes_deferred_prs"] = not any(
+            name.startswith(("20956_", "20957_")) for name in guest["checks"]
+        )
+        skipped["deferred_pr_scenarios"] = "MVP scope excludes #20956 telemetry and #20957 runtime-metric checks."
+    elif schema >= 2:
         checks["guest_telemetry_scenarios_present"] = guest.get(
             "verification_schema"
         ) == schema and required_telemetry_checks(schema).issubset(guest["checks"])

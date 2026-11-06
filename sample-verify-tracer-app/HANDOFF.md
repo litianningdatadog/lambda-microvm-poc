@@ -1,5 +1,21 @@
 # Tracer verification: RSS query investigation handoff
 
+## November 5 update for #21429 `04f1660893`
+
+#21429 was amended after review. A retirement now counts as finished only after
+its worker thread exits, and signal shutdown skips a retirement when the
+interrupted thread owns that writer's exporter lock. Neither behavior can be
+exercised in the guest: one needs a runtime-ID rotation, the other a
+main-thread signal handler. So they are a new local control,
+`lifecycle_control.py retirement-races`, added to `make check-lifecycle`.
+
+`./run-local.sh` passed 125/125 in `results/20261105T174248Z-17084` with a wheel
+rebuilt from stack tip `b6f782cbc0` (SHA256 `7b818995…aa5eb`), and
+`retirement-races` passed 18/18. With the `f7e1792cdd` processor mounted, it
+fails the targeted checks and then deadlocks (`retirement-races-before-fix.json`).
+Schema 5, the guest probes and the AWS evaluator are unchanged. No AWS run was
+made for this update.
+
 ## November 4 cleanup-error coverage update
 
 The sample now emits schema 5 and requires the #21429 `f7e1792cdd` cleanup-error
